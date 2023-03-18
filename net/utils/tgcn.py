@@ -52,7 +52,7 @@ class ConvTemporalGraphical(nn.Cell):
             in_channels,
             out_channels * kernel_size,
             kernel_size=(t_kernel_size, 1),
-            padding=(t_padding, 0, 0, 0),
+            padding=(t_padding, 0, 0, 0),#原本size是(0, 0),按理来说多个0,0padding没事
             stride=(t_stride, 1),
             dilation=(t_dilation, 1),
             has_bias=bias)
@@ -73,11 +73,12 @@ class ConvTemporalGraphical(nn.Cell):
 if __name__=="__main__":
     gcn = ConvTemporalGraphical(3, 64, 1)
     #  设 N=1, C=3, T=300, V=18
-    shape = (1, 3, 300, 18)
+    shape = (512, 3, 150, 18)
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
     A = numpy.random.rand(1, 18, 18)#Graph()
     A = Parameter(Tensor(A, dtype=mindspore.float32), requires_grad=False)
     x, A = gcn(x, A)
+    print(x.shape, A.shape)
 
 

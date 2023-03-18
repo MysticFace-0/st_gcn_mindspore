@@ -1,11 +1,13 @@
 import mindspore
 import mindspore.nn as nn
+import numpy
+
 from mindspore import Parameter, Tensor
 
 from net.utils.tgcn import ConvTemporalGraphical
 from net.utils.graph import Graph
 
-class Model(nn.Module):
+class Model(nn.Cell):
     r"""Spatial temporal graph convolutional networks.
 
     Args:
@@ -65,7 +67,7 @@ class Model(nn.Module):
         # fcn for prediction
         self.fcn = nn.Conv2d(256, num_class, kernel_size=1)
 
-    def forward(self, x):
+    def construct(self, x):
 
         # data normalization
         N, C, T, V, M = x.size()
@@ -144,13 +146,13 @@ class st_gcn(nn.Cell):
                  out_channels,
                  kernel_size,
                  stride=1,
-                 dropout=0,
+                 dropout=1., #dropout率与pytorch定义正好相反
                  residual=True):
         super().__init__()
 
         assert len(kernel_size) == 2
         assert kernel_size[0] % 2 == 1
-        padding = ((kernel_size[0] - 1) // 2, 0)
+        padding = ((kernel_size[0] - 1) // 2, 0, 0, 0) #原本size是((kernel_size[0] - 1) // 2, 0),按理来说多个0,0padding没事
 
         self.gcn = ConvTemporalGraphical(in_channels, out_channels,
                                          kernel_size[1])
@@ -163,7 +165,8 @@ class st_gcn(nn.Cell):
                 out_channels,
                 (kernel_size[0], 1),
                 (stride, 1),
-                padding,
+                pad_mode= "pad", # 填充模式
+                padding=padding,
             ),
             nn.BatchNorm2d(out_channels),
             nn.Dropout(keep_prob=dropout),
@@ -187,10 +190,23 @@ class st_gcn(nn.Cell):
 
         self.relu = nn.ReLU()
 
-    def forward(self, x, A):
+    def construct(self, x, A):
 
-        res = self.residual(x)
-        x, A = self.gcn(x, A)
+        res = self.residual(x) # (512, 64, 150, 18)
+
+        x, A = self.gcn(x, A) # (512, 1, 64, 150, 18) (1, 18, 18)
+
         x = self.tcn(x) + res
 
         return self.relu(x), A
+
+if __name__=="__main__":
+    st_gcn = st_gcn(3, 64, (9, 1), 1)
+    #  整个网络的输入是一个(N = batch_size,C = 3,T = 300,V = 18,M = 2)的tensor。
+    #  设 N*M(256*2)/C(3)/T(150)/V(18)
+    shape = (512, 3, 150, 18)
+    uniformreal = mindspore.ops.UniformReal(seed=2)
+    x = uniformreal(shape)
+    A = numpy.random.rand(1, 18, 18)#Graph()
+    A = Parameter(Tensor(A, dtype=mindspore.float32), requires_grad=False)
+    x, A = st_gcn(x, A)
