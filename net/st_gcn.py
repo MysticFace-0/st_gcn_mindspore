@@ -1,6 +1,6 @@
 import mindspore
 import mindspore.nn as nn
-from mindspore import Parameter
+from mindspore import Parameter, Tensor
 
 from net.utils.tgcn import ConvTemporalGraphical
 from net.utils.graph import Graph
@@ -31,7 +31,7 @@ class Model(nn.Module):
 
         # load graph
         self.graph = Graph(**graph_args)
-        A = mindspore.Tensor(self.graph.A, dtype=mindspore.float32, requires_grad=False)
+        A = Parameter(Tensor(self.graph.A, dtype=mindspore.float32), requires_grad=False)
         self.register_buffer('A', A)
 
         # build networks

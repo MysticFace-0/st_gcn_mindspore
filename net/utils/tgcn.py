@@ -2,6 +2,9 @@
 
 import mindspore
 import mindspore.nn as nn
+from mindspore import Parameter, Tensor
+import numpy.random
+
 
 class ConvTemporalGraphical(nn.Cell):
 
@@ -49,19 +52,32 @@ class ConvTemporalGraphical(nn.Cell):
             in_channels,
             out_channels * kernel_size,
             kernel_size=(t_kernel_size, 1),
-            padding=(t_padding, 0),
+            padding=(t_padding, 0, 0, 0),
             stride=(t_stride, 1),
             dilation=(t_dilation, 1),
             has_bias=bias)
 
-    def forward(self, x, A):
+    def construct(self, x, A):
         assert A.shape[0] == self.kernel_size
 
+        #  这里输入x是(N,C,T,V),经过conv(x)之后变为（N，C*kneral_size,T,V）
         x = self.conv(x)
 
         n, kc, t, v = x.shape
         x = x.view(n, self.kernel_size, kc//self.kernel_size, t, v)
 
-        #x = torch.einsum('nkctv,kvw->nctw', (x, A)) 不支持
+        #x = torch.einsum('nkctv,kvw->nctw', (x, A)) 不支持，之后修正
 
         return x, A
+
+if __name__=="__main__":
+    gcn = ConvTemporalGraphical(3, 64, 1)
+    #  设 N=1, C=3, T=300, V=18
+    shape = (1, 3, 300, 18)
+    uniformreal = mindspore.ops.UniformReal(seed=2)
+    x = uniformreal(shape)
+    A = numpy.random.rand(1, 18, 18)#Graph()
+    A = Parameter(Tensor(A, dtype=mindspore.float32), requires_grad=False)
+    x, A = gcn(x, A)
+
+
