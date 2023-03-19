@@ -2,7 +2,7 @@
 
 import mindspore
 import mindspore.nn as nn
-from mindspore import Parameter, Tensor
+from mindspore import Parameter, Tensor, ops
 import numpy.random
 
 
@@ -52,7 +52,7 @@ class ConvTemporalGraphical(nn.Cell):
             in_channels,
             out_channels * kernel_size,
             kernel_size=(t_kernel_size, 1),
-            padding=(t_padding, 0, 0, 0),#原本size是(0, 0),按理来说多个0,0padding没事
+            padding=(t_padding, t_padding, 0, 0),#padding 是一个有4个整数的tuple，那么上、下、左、右的填充分别等于 padding[0] 、 padding[1] 、 padding[2] 和 padding[3]
             stride=(t_stride, 1),
             dilation=(t_dilation, 1),
             has_bias=bias)
@@ -66,17 +66,26 @@ class ConvTemporalGraphical(nn.Cell):
         n, kc, t, v = x.shape
         x = x.view(n, self.kernel_size, kc//self.kernel_size, t, v)
 
-        #x = torch.einsum('nkctv,kvw->nctw', (x, A)) 不支持，之后修正
+        # x = torch.einsum('nkctv,kvw->nctw', (x, A)) 不支持，替换为普通算子
+        n_dim, k_dim, c_dim, t_dim, v_dim = x.shape
+        _, _, w_dim = A.shape
+        reshape = ops.Reshape() # 变形算子
+        mul = ops.Mul() # 乘法算子
+        x = reshape(x, (n_dim, k_dim, c_dim, t_dim, v_dim, 1))
+        A_t = reshape(A, (1, k_dim, 1, 1, v_dim, w_dim))
+        x = mul(x, A_t)
+        x = x.sum(axis=4)
+        x = x.sum(axis=1)
 
         return x, A
 
 if __name__=="__main__":
     gcn = ConvTemporalGraphical(3, 64, 1)
-    #  设 N=1, C=3, T=300, V=18
-    shape = (512, 3, 150, 18)
+    #  设 N=256*2, C=3, T=150, V=18
+    shape = (256*2, 3, 150, 18)
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
-    A = numpy.random.rand(1, 18, 18)#Graph()
+    A = numpy.random.rand(1, 18, 18) # Graph()
     A = Parameter(Tensor(A, dtype=mindspore.float32), requires_grad=False)
     x, A = gcn(x, A)
     print(x.shape, A.shape)

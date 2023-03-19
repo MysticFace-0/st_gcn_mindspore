@@ -1,9 +1,10 @@
 import mindspore
+import mindspore.nn as nn
 from mindspore import ops
 
 from .st_gcn import Model as ST_GCN
 
-class Model(nn.Module):
+class Model(nn.Cell):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -27,3 +28,4 @@ class Model(nn.Module):
 
         res = self.origin_stream(x) + self.motion_stream(m)
         return res
+

@@ -152,7 +152,8 @@ class st_gcn(nn.Cell):
 
         assert len(kernel_size) == 2
         assert kernel_size[0] % 2 == 1
-        padding = ((kernel_size[0] - 1) // 2, 0, 0, 0) #原本size是((kernel_size[0] - 1) // 2, 0),按理来说多个0,0padding没事
+        padding = ((kernel_size[0] - 1) // 2, (kernel_size[0] - 1) // 2, 0, 0)
+        #padding 是一个有4个整数的tuple，那么上、下、左、右的填充分别等于 padding[0] 、 padding[1] 、 padding[2] 和 padding[3]
 
         self.gcn = ConvTemporalGraphical(in_channels, out_channels,
                                          kernel_size[1])
@@ -177,7 +178,7 @@ class st_gcn(nn.Cell):
 
         elif (in_channels == out_channels) and (stride == 1):
             self.residual = lambda x: x
-
+            print(2)
         else:
             self.residual = nn.SequentialCell(
                 nn.Conv2d(
@@ -194,7 +195,7 @@ class st_gcn(nn.Cell):
 
         res = self.residual(x) # (512, 64, 150, 18)
 
-        x, A = self.gcn(x, A) # (512, 1, 64, 150, 18) (1, 18, 18)
+        x, A = self.gcn(x, A) # (512, 64, 150, 18) (1, 18, 18)
 
         x = self.tcn(x) + res
 
@@ -204,9 +205,10 @@ if __name__=="__main__":
     st_gcn = st_gcn(3, 64, (9, 1), 1)
     #  整个网络的输入是一个(N = batch_size,C = 3,T = 300,V = 18,M = 2)的tensor。
     #  设 N*M(256*2)/C(3)/T(150)/V(18)
-    shape = (512, 3, 150, 18)
+    shape = (4, 3, 150, 18)
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
     A = numpy.random.rand(1, 18, 18)#Graph()
     A = Parameter(Tensor(A, dtype=mindspore.float32), requires_grad=False)
     x, A = st_gcn(x, A)
+    print(x.shape, A.shape)
