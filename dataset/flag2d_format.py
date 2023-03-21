@@ -9,6 +9,10 @@ split: # divide dataset to 'train' and 'val' according to identifiers
     },
 annotations:
     [
+    train:
+    min: 301, max: 3089
+    val:
+    min: 146, max: 7650
     '''
     keypoint:
     1 1045 17 2

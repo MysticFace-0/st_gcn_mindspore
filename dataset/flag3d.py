@@ -4,7 +4,7 @@ import mindspore.dataset as ds
 from torch.utils.data import Dataset
 
 
-class FLAG2DTrainDatasetGenerator():
+class FLAG3DTrainDatasetGenerator():
     """
     dataset_dir: where the dataset locate
     """
@@ -22,7 +22,7 @@ class FLAG2DTrainDatasetGenerator():
         return self.dataset_len
 
 
-class FLAG2DValDatasetGenerator():
+class FLAG3DValDatasetGenerator():
     """
     dataset_dir: where the dataset locate
     """
@@ -41,7 +41,7 @@ class FLAG2DValDatasetGenerator():
 
 
 if __name__=="__main__":
-    dataset_generator = FLAG2DTrainDatasetGenerator("D:\\data\\FLAG3D\\data\\flag2d.pkl")
-    # dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(4, True)
-    # for data in dataset.create_dict_iterator():
-    #     print(data["keypoint"].shape, data["label"])
+    dataset_generator = FLAG3DValDatasetGenerator("D:\\data\\FLAG3D\\data\\flag3d.pkl")
+    dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(32, True)
+    for data in dataset.create_dict_iterator():
+        print(data["label"])
