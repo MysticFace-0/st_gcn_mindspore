@@ -4,8 +4,8 @@ import numpy
 
 from mindspore import Parameter, Tensor
 
-from net.utils.tgcn import ConvTemporalGraphical
-from net.utils.graph import Graph
+from utils.tgcn import ConvTemporalGraphical
+from utils.graph import Graph
 
 class Model(nn.Cell):
     r"""Spatial temporal graph convolutional networks.
