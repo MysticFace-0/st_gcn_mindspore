@@ -43,7 +43,7 @@ class FLAG2DTrainDatasetGenerator():
         return self.dataset_len
 
 
-class FLAG2DValDatasetGenerator():
+class FLAG2DTestDatasetGenerator():
     """
     dataset_dir: where the dataset locate
     """
@@ -81,7 +81,7 @@ class FLAG2DValDatasetGenerator():
 
 
 if __name__=="__main__":
-    dataset_generator = FLAG2DValDatasetGenerator("D:\\data\\FLAG3D\\data\\flag2d.pkl")
+    dataset_generator = FLAG2DTestDatasetGenerator("D:\\data\\FLAG3D\\data\\flag2d.pkl")
     dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(4, True)
     for data in dataset.create_dict_iterator():
         # Tensor(32, 10, 1, 500, 17, 3) Tensor(32)

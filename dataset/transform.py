@@ -18,9 +18,9 @@ class PreNormalize2D():
 class GenSkeFeat():
     """Unified interface for generating multi-stream skeleton features."""
     def transform(self, results: dict) -> dict:
-        results['keypoint'] = np.concatenate(
-                [results['keypoint'], results['keypoint_score'][..., None]], -1)
-
+        if 'keypoint_score' in results and 'keypoint' in results:
+            results['keypoint'] = np.concatenate(
+                    [results['keypoint'], results['keypoint_score'][..., None]], -1)
         return results
 
 class UniformSampleFrames():
