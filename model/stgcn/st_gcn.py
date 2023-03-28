@@ -2,7 +2,7 @@ import mindspore
 import mindspore.nn as nn
 import numpy
 
-from mindspore import Parameter, Tensor
+from mindspore import Parameter, Tensor, ParameterTuple, ops
 
 from utils.tgcn import ConvTemporalGraphical
 from utils.graph import Graph
@@ -29,20 +29,19 @@ class Model(nn.Cell):
 
     def __init__(self, in_channels, num_class, graph_args,
                  edge_importance_weighting, **kwargs):
-        super().__init__()
+        super().__init__(auto_prefix=True)
 
         # load graph
         self.graph = Graph(**graph_args)
-        A = Parameter(Tensor(self.graph.A, dtype=mindspore.float32), requires_grad=False)
-        self.register_buffer('A', A)
+        self.A = Parameter(Tensor(self.graph.A, dtype=mindspore.float32), requires_grad=False)
 
         # build networks
-        spatial_kernel_size = A.shape[0]
+        spatial_kernel_size = self.A.shape[0]
         temporal_kernel_size = 9
-        kernel_size = (temporal_kernel_size, spatial_kernel_size)
-        self.data_bn = nn.BatchNorm1d(in_channels * A.shape[1])
+        kernel_size = (temporal_kernel_size, spatial_kernel_size) # (9,3)
+        self.data_bn = nn.BatchNorm1d(in_channels * self.A.shape[1])
         kwargs0 = {k: v for k, v in kwargs.items() if k != 'dropout'}
-        self.st_gcn_networks = nn.CellList((
+        self.st_gcn_networks = nn.CellList([
             st_gcn(in_channels, 64, kernel_size, 1, residual=False, **kwargs0),
             st_gcn(64, 64, kernel_size, 1, **kwargs),
             st_gcn(64, 64, kernel_size, 1, **kwargs),
@@ -53,27 +52,41 @@ class Model(nn.Cell):
             st_gcn(128, 256, kernel_size, 2, **kwargs),
             st_gcn(256, 256, kernel_size, 1, **kwargs),
             st_gcn(256, 256, kernel_size, 1, **kwargs),
-        ))
+        ])
 
         # initialize parameters for edge importance weighting
+        ones = ops.Ones()
         if edge_importance_weighting:
-            self.edge_importance = nn.ParameterTuple([
-                nn.Parameter(mindspore.ops.Ones(self.A.shape))
-                for i in self.st_gcn_networks
-            ])
+            # warning: Please set a unique name for the parameter in ParameterTuple
+            one = Parameter(ones(self.A.shape, mindspore.float32))
+            self.edge_importance = ParameterTuple(
+                one for i in self.st_gcn_networks
+            )
         else:
-            self.edge_importance = [1] * len(self.st_gcn_networks)
+            self.edge_importance = [1] * len(self.st_gcn_networks) # [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
         # fcn for prediction
+
         self.fcn = nn.Conv2d(256, num_class, kernel_size=1)
 
     def construct(self, x):
+        # B batch_size
+        # N 视频个数
+        # C = 3(X, Y, S) 代表一个点的信息(位置 + 预测的可能性)
+        # T = 300 一个视频的帧数paper规定是300帧，不足的重头循环，多的clip
+        # V 18 根据不同的skeleton获得的节点数而定，coco是18个节点
+        # M = 2 人数，paper中将人数限定在最大2个人
+
+        # B, N, M, T, V, C to N, C, T, V, M
+        B, N, M, T, V, C = x.shape
+        x = x.view(B*N, M, T, V, C)
+        x = x.transpose(0,4,2,3,1)
 
         # data normalization
-        N, C, T, V, M = x.size()
+        N, C, T, V, M = x.shape
         x = x.permute(0, 4, 3, 1, 2)#.contiguous()
         x = x.view(N * M, V * C, T)
-        x = self.data_bn(x)
+        # x = self.data_bn(x)
         x = x.view(N, M, V, C, T)
         x = x.permute(0, 1, 3, 4, 2)#.contiguous()
         x = x.view(N * M, C, T, V)
@@ -83,19 +96,26 @@ class Model(nn.Cell):
             x, _ = gcn(x, self.A * importance)
 
         # global pooling
-        x = mindspore.ops.AvgPool(x, x.size()[2:])
-        x = x.view(N, M, -1, 1, 1).mean(dim=1)
+        print(x.shape)
+        avgpool_op = ops.AvgPool(pad_mode="VALID", kernel_size=x.shape[2:], strides=1)
+        x = avgpool_op(x)
+        x = ops.mean(x.view(N, M, -1, 1, 1),axis=1)
 
         # prediction
         x = self.fcn(x)
-        x = x.view(x.size(0), -1)
+        x = x.view(x.shape[0], -1)
 
         return x
 
     def extract_feature(self, x):
 
+        # B, N, M, T, V, C to N, C, T, V, M
+        B, N, M, T, V, C = x.shape
+        x = x.view(B*N, M, T, V, C)
+        x = x.transpose(0,4,2,3,1)
+
         # data normalization
-        N, C, T, V, M = x.size()
+        N, C, T, V, M = x.shape
         x = x.permute(0, 4, 3, 1, 2)#.contiguous()
         x = x.view(N * M, V * C, T)
         x = self.data_bn(x)
@@ -107,7 +127,7 @@ class Model(nn.Cell):
         for gcn, importance in zip(self.st_gcn_networks, self.edge_importance):
             x, _ = gcn(x, self.A * importance)
 
-        _, c, t, v = x.size()
+        _, c, t, v = x.shape
         feature = x.view(N, M, c, t, v).permute(0, 2, 3, 4, 1)
 
         # prediction
@@ -178,7 +198,6 @@ class st_gcn(nn.Cell):
 
         elif (in_channels == out_channels) and (stride == 1):
             self.residual = lambda x: x
-            print(2)
         else:
             self.residual = nn.SequentialCell(
                 nn.Conv2d(
@@ -193,22 +212,31 @@ class st_gcn(nn.Cell):
 
     def construct(self, x, A):
 
-        res = self.residual(x) # (512, 64, 150, 18)
+        res = self.residual(x) # (6, 1, 100, 17)
 
-        x, A = self.gcn(x, A) # (512, 64, 150, 18) (1, 18, 18)
+        x, A = self.gcn(x, A) # (6, 1, 100, 17) (1, 17, 17)
 
         x = self.tcn(x) + res
 
         return self.relu(x), A
 
 if __name__=="__main__":
-    st_gcn = st_gcn(3, 64, (9, 1), 1)
-    #  整个网络的输入是一个(N = batch_size,C = 3,T = 300,V = 18,M = 2)的tensor。
-    #  设 N*M(256*2)/C(3)/T(150)/V(18)
-    shape = (4, 3, 150, 18)
+    # model测试
+    model = Model(3, 60, dict(layout='coco', mode='stgcn_spatial'), True)
+    shape = (4, 1, 1, 100, 17, 3)
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
-    A = numpy.random.rand(1, 18, 18)#Graph()
-    A = Parameter(Tensor(A, dtype=mindspore.float32), requires_grad=False)
-    x, A = st_gcn(x, A)
-    print(x.shape, A.shape)
+    y = model(x)
+    print(y.shape)
+
+    # # stgcn测试
+    # st_gcn = st_gcn(3, 64, (9, 1), 1)
+    # #  整个网络的输入是一个(N = batch_size,C = 3,T = 300,V = 18,M = 2)的tensor。
+    # #  设 N*M(2*2)/C(3)/T(150)/V(18)
+    # shape = (4, 3, 150, 18)
+    # uniformreal = mindspore.ops.UniformReal(seed=2)
+    # x = uniformreal(shape)
+    # A = numpy.random.rand(1, 18, 18)#Graph()
+    # A = Parameter(Tensor(A, dtype=mindspore.float32), requires_grad=False)
+    # x, A = st_gcn(x, A)
+    # print(x.shape)

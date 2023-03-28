@@ -2,12 +2,13 @@
 import copy as cp
 from typing import Dict, List, Optional, Union
 
+import mindspore
 import torch
 import torch.nn as nn
 
-def build_norm_layer(cfg: Dict,
-                     num_features: int,
-                     postfix: Union[int, str] = '') -> Tuple[str, nn.Module]:
+def build_norm_layer(cfg: Dict, # {'type': 'BN'}
+                     num_features: int, # 64
+                     postfix: Union[int, str] = '') -> tuple[str, nn.Module]:
     """Build normalization layer.
 
     Args:
@@ -155,28 +156,27 @@ class unit_gcn(nn.Cell):
     """
 
     def __init__(self,
-                 in_channels: int,
-                 out_channels: int,
-                 A: torch.Tensor,
+                 in_channels: int, # 3
+                 out_channels: int, # 64
+                 A: mindspore.Tensor, # (3,17,17)
                  adaptive: str = 'importance',
                  conv_pos: str = 'pre',
                  with_res: bool = False,
                  norm: str = 'BN',
-                 act: str = 'ReLU',
-                 init_cfg: Optional[Union[Dict, List[Dict]]] = None) -> None:
-        super().__init__(init_cfg=init_cfg)
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+                 act: str = 'ReLU') -> None:
+        super().__init__()
+        self.in_channels = in_channels # 3
+        self.out_channels = out_channels # 64
         self.num_subsets = A.size(0)
 
         assert adaptive in [None, 'init', 'offset', 'importance']
-        self.adaptive = adaptive
+        self.adaptive = adaptive # importance
         assert conv_pos in ['pre', 'post']
-        self.conv_pos = conv_pos
-        self.with_res = with_res
+        self.conv_pos = conv_pos # pre
+        self.with_res = with_res # False
 
-        self.norm_cfg = norm if isinstance(norm, dict) else dict(type=norm)
-        self.act_cfg = act if isinstance(act, dict) else dict(type=act)
+        self.norm_cfg = norm if isinstance(norm, dict) else dict(type=norm) # {'type': 'BN'}
+        self.act_cfg = act if isinstance(act, dict) else dict(type=act) # {'type': 'RELU'}
         self.bn = build_norm_layer(self.norm_cfg, out_channels)[1]
         self.act = build_activation_layer(self.act_cfg)
 

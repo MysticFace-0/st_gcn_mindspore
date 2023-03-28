@@ -8,6 +8,7 @@ import numpy
 from mindspore import Parameter, Tensor, ops
 
 # from ..utils import Graph, mstcn, unit_gcn, unit_tcn
+from model.utils import Graph
 
 EPS = 1e-4
 
@@ -26,35 +27,23 @@ class STGCNBlock(nn.Cell):
     """
 
     def __init__(self,
-                 in_channels: int,
-                 out_channels: int,
+                 in_channels: int, # 3
+                 out_channels: int, # 64
                  A: mindspore.Tensor,
                  stride: int = 1,
                  residual: bool = True,
-                 **kwargs) -> None:
+                 tcn_type = 'unit_tcn',
+                 gcn_type = 'unit_gcn') -> None:
         super().__init__()
 
-        gcn_kwargs = {k[4:]: v for k, v in kwargs.items() if k[:4] == 'gcn_'}
-        tcn_kwargs = {k[4:]: v for k, v in kwargs.items() if k[:4] == 'tcn_'}
-        kwargs = {
-            k: v
-            for k, v in kwargs.items() if k[:4] not in ['gcn_', 'tcn_']
-        }
-        assert len(kwargs) == 0, f'Invalid arguments: {kwargs}'
-
-        tcn_type = tcn_kwargs.pop('type', 'unit_tcn')
-        assert tcn_type in ['unit_tcn', 'mstcn']
-        gcn_type = gcn_kwargs.pop('type', 'unit_gcn')
-        assert gcn_type in ['unit_gcn']
-
-        self.gcn = unit_gcn(in_channels, out_channels, A, **gcn_kwargs)
+        self.gcn = unit_gcn(in_channels, out_channels, A)
 
         if tcn_type == 'unit_tcn':
             self.tcn = unit_tcn(
-                out_channels, out_channels, 9, stride=stride, **tcn_kwargs)
+                out_channels, out_channels, 9, stride=stride)
         elif tcn_type == 'mstcn':
             self.tcn = mstcn(
-                out_channels, out_channels, stride=stride, **tcn_kwargs)
+                out_channels, out_channels, stride=stride)
         self.relu = nn.ReLU()
 
         if not residual:
@@ -122,7 +111,7 @@ class STGCN(nn.Cell):
                  **kwargs) -> None:
         super().__init__()
 
-        self.graph = numpy.random.random([3,17,17])# Graph(**graph_cfg) # build stgcn g
+        self.graph = Graph(**graph_cfg) # build stgcn g
 
         A = Parameter(Tensor(self.graph, dtype=mindspore.float32), requires_grad=False) # (3, 17, 17)
 
@@ -145,12 +134,12 @@ class STGCN(nn.Cell):
         modules = []
         if self.in_channels != self.base_channels:
             modules = [
-                # STGCNBlock(
-                #     in_channels,
-                #     base_channels,
-                #     A, # A.clone() 测试过mindspore中不用clone的效果是一样的
-                #     1,
-                #     residual=False)
+                STGCNBlock(
+                    in_channels, # 3
+                    base_channels, # 64
+                    A, # A.clone() 测试过mindspore中不用clone的效果是一样的
+                    1,
+                    residual=False)
             ]
 
         inflate_times = 0
@@ -163,8 +152,8 @@ class STGCN(nn.Cell):
                                self.ch_ratio**inflate_times + EPS)
             base_channels = out_channels
             A_clone = A
-            # modules.append(
-            #     STGCNBlock(in_channels, out_channels, A_clone, stride))
+            modules.append(
+                STGCNBlock(in_channels, out_channels, A_clone, stride))
 
         if self.in_channels == self.base_channels:
             num_stages -= 1
@@ -176,10 +165,12 @@ class STGCN(nn.Cell):
         """Defines the computation performed at every call."""
         N, M, T, V, C = x.shape
         x = x.permute(0, 1, 3, 4, 2)# .contiguous() # (2, 1, 17, 3, 100)
-        if self.data_bn_type == 'MVC':
-            x = self.data_bn(x.view(N, M * V * C, T))
-        else:
-            x = self.data_bn(x.view(N * M, V * C, T))
+
+        # #BN无三维算子
+        # if self.data_bn_type == 'MVC':
+        #     x = self.data_bn(x.view(N, M * V * C, T))
+        # else:
+        #     x = self.data_bn(x.view(N * M, V * C, T))
 
         x = x.view(N, M, V, C, T).permute(0, 1, 3, 4, 2) #.contiguous()
         x = x.view(N * M, C, T, V)

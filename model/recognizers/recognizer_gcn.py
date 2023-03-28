@@ -21,8 +21,7 @@ class RecognizerGCN():
 
     def extract_feat(self,
                      inputs: mindspore.Tensor,
-                     stage: str = 'backbone',
-                     **kwargs) -> Tuple:
+                     stage: str = 'backbone') -> Tuple:
         """Extract features at the given stage.
 
         Args:
