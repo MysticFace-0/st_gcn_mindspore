@@ -44,6 +44,43 @@ class FLAG3DTrainDatasetGenerator():
         return self.class_num
 
 
+class FLAG3DValDatasetGenerator():
+    """
+    dataset_dir: where the dataset locate
+    """
+    def __init__(self, dataset_dir, clip_len = 500, num_clips = 1, test_mode=True):
+        with open(dataset_dir, "rb") as dataset:
+            self.dataset = pickle.load(dataset) # No changed format dataset
+
+        self.class_num = 60
+        self.dataset_len = len(self.dataset['split']['val'])
+        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):]
+
+        # origin: (1, 1046, 25, 3)
+        self.GenSkeFeat = GenSkeFeat() # (1, 1046, 25, 3)
+        self.UniformSampleFrames = UniformSampleFrames(clip_len, num_clips, test_mode) # (1, 1046, 25, 3)
+        self.PoseDecode = PoseDecode() # (1, 5000, 25, 3)
+        self.FormatGCNInput = FormatGCNInput() # (10, 1, 500, 25, 3)
+        self.Collect = Collect() # (10, 1, 500, 25, 3)
+        self.ToTensor = ToTensor() # (10, 1, 500, 25, 3)
+
+        for i in range(self.dataset_len):
+            self.dataset[i] = self.GenSkeFeat.transform(self.dataset[i])
+            self.dataset[i] = self.UniformSampleFrames.transform(self.dataset[i])
+            self.dataset[i] = self.PoseDecode.transform(self.dataset[i])
+            self.dataset[i] = self.FormatGCNInput.transform(self.dataset[i])
+            self.dataset[i] = self.Collect.transform(self.dataset[i])
+            self.dataset[i] = self.ToTensor.transform(self.dataset[i])
+
+    def __getitem__(self, index):
+        return self.dataset[index]['keypoint'], self.dataset[index]['label']
+
+    def __len__(self):
+        return self.dataset_len
+
+    def class_num(self):
+        return self.class_num
+
 class FLAG3DTestDatasetGenerator():
     """
     dataset_dir: where the dataset locate
