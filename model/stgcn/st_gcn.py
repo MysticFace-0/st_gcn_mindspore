@@ -12,6 +12,7 @@ class Model(nn.Cell):
 
     Args:
         in_channels (int): Number of channels in the input data
+        num_frames (int): Number of frames for the single video
         num_class (int): Number of classes for the classification task
         graph_args (dict): The arguments for building the graph
         edge_importance_weighting (bool): If ``True``, adds a learnable
@@ -27,7 +28,7 @@ class Model(nn.Cell):
             :math:`M_{in}` is the number of instance in a frame.
     """
 
-    def __init__(self, in_channels, num_class, graph_args,
+    def __init__(self, in_channels, num_frames, num_class, graph_args,
                  edge_importance_weighting, **kwargs):
         super().__init__(auto_prefix=True)
 
@@ -39,7 +40,11 @@ class Model(nn.Cell):
         spatial_kernel_size = self.A.shape[0]
         temporal_kernel_size = 9
         kernel_size = (temporal_kernel_size, spatial_kernel_size) # (9,3)
-        self.data_bn = nn.BatchNorm1d(in_channels * self.A.shape[1])
+
+        self.data_bnt = nn.BatchNorm1d(num_frames)
+        self.data_bnc = nn.BatchNorm1d(in_channels * self.A.shape[1])
+        # mindspore无三维算子，先要在L上归一化，再在C上归一化
+
         kwargs0 = {k: v for k, v in kwargs.items() if k != 'dropout'}
         self.st_gcn_networks = nn.CellList([
             st_gcn(in_channels, 64, kernel_size, 1, residual=False, **kwargs0),
@@ -83,10 +88,17 @@ class Model(nn.Cell):
         x = x.transpose(0,4,2,3,1)
 
         # data normalization
-        N, C, T, V, M = x.shape
+        N, C, T, V, M = x.shape # (2, 3, 100, 17, 1)
         x = x.permute(0, 4, 3, 1, 2)#.contiguous()
-        x = x.view(N * M, V * C, T)
-        # x = self.data_bn(x)
+        x = x.view(N * M, V * C, T) # (2*1, 3*17, 100)
+
+        # 先对T做归一化
+        x = self.data_bnt(x.view(N * M * V * C, T)).view(N * M, V * C, T)
+        x = x.transpose((0, 2, 1))
+        # 再对C做归一化
+        x = self.data_bnc(x.view(N * M * T, V * C)).view(N * M, T, V * C)
+        x = x.transpose((0, 2, 1))
+
         x = x.view(N, M, V, C, T)
         x = x.permute(0, 1, 3, 4, 2)#.contiguous()
         x = x.view(N * M, C, T, V)
@@ -96,7 +108,6 @@ class Model(nn.Cell):
             x, _ = gcn(x, self.A * importance)
 
         # global pooling
-        print(x.shape)
         avgpool_op = ops.AvgPool(pad_mode="VALID", kernel_size=x.shape[2:], strides=1)
         x = avgpool_op(x)
         x = ops.mean(x.view(N, M, -1, 1, 1),axis=1)
@@ -105,7 +116,7 @@ class Model(nn.Cell):
         x = self.fcn(x)
         x = x.view(x.shape[0], -1)
 
-        return x
+        return x #(bacth_size, num_class)
 
     def extract_feature(self, x):
 
@@ -222,8 +233,8 @@ class st_gcn(nn.Cell):
 
 if __name__=="__main__":
     # model测试
-    model = Model(3, 60, dict(layout='coco', mode='stgcn_spatial'), True)
-    shape = (4, 1, 1, 100, 17, 3)
+    model = Model(3, 100, 60, dict(layout='coco', mode='stgcn_spatial'), False)
+    shape = (2, 1, 1, 100, 17, 3) # dataloader直接读取的格式
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
     y = model(x)
