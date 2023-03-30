@@ -4,10 +4,10 @@ import numpy
 
 from mindspore import Parameter, Tensor, ParameterTuple, ops
 
-from utils.tgcn import ConvTemporalGraphical
-from utils.graph import Graph
+from .utils.tgcn import ConvTemporalGraphical
+from .utils.graph import Graph
 
-class Model(nn.Cell):
+class STGCN(nn.Cell):
     r"""Spatial temporal graph convolutional networks.
 
     Args:
@@ -233,7 +233,7 @@ class st_gcn(nn.Cell):
 
 if __name__=="__main__":
     # model测试
-    model = Model(3, 100, 60, dict(layout='coco', mode='stgcn_spatial'), False)
+    model = STGCN(3, 100, 60, dict(layout='coco', mode='stgcn_spatial'), False)
     shape = (2, 1, 1, 100, 17, 3) # dataloader直接读取的格式
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)

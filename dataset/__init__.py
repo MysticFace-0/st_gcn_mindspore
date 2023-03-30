@@ -1,9 +1,8 @@
-from .flag2d import FLAG2DTrainDatasetGenerator
-from .flag2d import FLAG2DTestDatasetGenerator
-from .flag3d import FLAG3DTrainDatasetGenerator
-from .flag3d import FLAG3DTestDatasetGenerator
+from .flag2d import FLAG2DTrainDatasetGenerator, FLAG2DValDatasetGenerator, FLAG2DTestDatasetGenerator
+from .flag3d import FLAG3DTrainDatasetGenerator, FLAG3DValDatasetGenerator, FLAG3DTestDatasetGenerator
+
 
 __all__ = [
-    'FLAG2DTrainDatasetGenerator', 'FLAG2DTestDatasetGenerator',
-    'FLAG3DTrainDatasetGenerator', 'FLAG3DTestDatasetGenerator'
+    'FLAG2DTrainDatasetGenerator', 'FLAG2DValDatasetGenerator', 'FLAG2DTestDatasetGenerator',
+    'FLAG3DTrainDatasetGenerator', 'FLAG3DValDatasetGenerator', 'FLAG3DTestDatasetGenerator'
 ]
