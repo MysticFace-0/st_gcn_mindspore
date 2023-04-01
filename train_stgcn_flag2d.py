@@ -74,16 +74,18 @@ def train(dataset_train, model, celoss, optimizer, args):
     total_loss = 0.
     model.set_train()
 
+    # 定义前传函数
     def forward_fn(data, label):
         y = model(x)
         loss = celoss(y, label)
         return loss, y
 
+    # 生成求导函数，用于计算给定函数的正向计算结果和梯度。
     grad_fn = ops.value_and_grad(forward_fn, None, optimizer.parameters, has_aux=True)
 
     def train_step(data, label):
         (loss, _), grads = grad_fn(data, label)
-        loss = ops.depend(loss, optimizer(grads))
+        optimizer(grads)
         return loss
 
     for data in dataset_train.create_dict_iterator():
@@ -108,6 +110,8 @@ def val(dataset_val, model, celoss, args):
     softmax = ops.Softmax()
     model.set_train(False)
     for data in dataset_val.create_dict_iterator():
+        if(i>=10):
+            break
         x = data["keypoint"]
         label = data["label"].to(mindspore.int32)
         y = model(x)
