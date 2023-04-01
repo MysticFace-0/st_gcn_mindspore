@@ -120,9 +120,10 @@ class FLAG3DTestDatasetGenerator():
 
 
 if __name__=="__main__":
-    dataset_generator = FLAG3DTestDatasetGenerator("D:\\data\\FLAG3D\\data\\flag3d.pkl")
-    dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(4, True)
+    dataset_generator = FLAG3DTestDatasetGenerator("D:\\data\\flag3d.pkl")
+    dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(32, True)
+    print()
     for data in dataset.create_dict_iterator():
         # Tensor(32, 10, 1, 500, 17, 3) Tensor(32)
         # (Batch_size, num_clips, num_person, frames, num_keypoint, keypoint_location) (label)
-        print(data['keypoint'].shape, data["label"])
+        print(data['keypoint'].shape, data["label"].shape)

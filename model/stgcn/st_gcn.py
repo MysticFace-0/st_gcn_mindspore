@@ -101,7 +101,7 @@ class STGCN(nn.Cell):
 
         x = x.view(N, M, V, C, T)
         x = x.permute(0, 1, 3, 4, 2)#.contiguous()
-        x = x.view(N * M, C, T, V)
+        x = x.view(N * M, C, T, V) # human1_video=[0:num_clip], human2_video=[num_clip:2*num_clip]
 
         # forwad
         for gcn, importance in zip(self.st_gcn_networks, self.edge_importance):
@@ -239,6 +239,7 @@ if __name__=="__main__":
     x = uniformreal(shape)
     y = model(x)
     print(y.shape)
+    #(2, 1, 1, 100, 17, 3)->(2, 60)     (2, 3, 1, 100, 17, 3)->(6, 60)
 
     # # stgcn测试
     # st_gcn = st_gcn(3, 64, (9, 1), 1)
