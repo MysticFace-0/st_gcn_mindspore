@@ -4,18 +4,15 @@ import numpy as np
 import mindspore
 import mindspore.nn as nn
 from mindspore import Parameter, Tensor, ops
-from mindspore.common.initializer import initializer, HeNormal
-
-from torch.autograd import Variable
+from mindspore.common.initializer import initializer, HeNormal, Normal
 
 from utils.graph import Graph
 
 
 def conv_branch_init(conv, branches):
-    n, k1, k2 = conv.weight.shape
-    constant_init_weight = mindspore.common.initializer.Normal(sigma=math.sqrt(2. / (n * k1 * k2 * branches)), mean=0.0)
+    n, k1, k2, _ = conv.weight.shape
     constant_init_bias = mindspore.common.initializer.Constant(value=0)
-    constant_init_weight(conv.weight)
+    conv.weight = initializer(Normal(sigma=math.sqrt(2. / (n * k1 * k2 * branches)), mean=0.0), conv.weight.shape, mindspore.float32)
     constant_init_bias(conv.bias)
 
 
@@ -63,13 +60,13 @@ class unit_gcn(nn.Cell):
         self.conv_b = nn.CellList()
         self.conv_d = nn.CellList()
         for i in range(self.num_subset):
-            self.conv_a.append(nn.Conv2d(in_channels, inter_channels, 1))
-            self.conv_b.append(nn.Conv2d(in_channels, inter_channels, 1))
-            self.conv_d.append(nn.Conv2d(in_channels, out_channels, 1))
+            self.conv_a.append(nn.Conv2d(in_channels, inter_channels, 1, has_bias=True))
+            self.conv_b.append(nn.Conv2d(in_channels, inter_channels, 1, has_bias=True))
+            self.conv_d.append(nn.Conv2d(in_channels, out_channels, 1, has_bias=True))
 
         if in_channels != out_channels:
             self.down = nn.SequentialCell(
-                nn.Conv2d(in_channels, out_channels, 1),
+                nn.Conv2d(in_channels, out_channels, 1, has_bias=True),
                 nn.BatchNorm2d(out_channels)
             )
         else:
@@ -87,7 +84,6 @@ class unit_gcn(nn.Cell):
                 bn_init(m, 1)
         bn_init(self.bn, 1e-6)
         for i in range(self.num_subset):
-            print(self.conv_d[i])
             conv_branch_init(self.conv_d[i], self.num_subset)
 
     def construct(self, x):
@@ -97,12 +93,29 @@ class unit_gcn(nn.Cell):
 
         y = None
         for i in range(self.num_subset):
-            A1 = self.conv_a[i](x).permute(0, 3, 1, 2).view(N, V, self.inter_c * T)
-            A2 = self.conv_b[i](x).view(N, self.inter_c * T, V)
-            A1 = self.soft(self.matmul(A1, A2) / A1.size(-1))  # N V V
+            A1 = self.conv_a[i](x).permute(0, 3, 1, 2).view(N, V, self.inter_c * T) # (2, 17, 1600)
+            A2 = self.conv_b[i](x).view(N, self.inter_c * T, V) # (2, 1600, 17)
+            bx, hx, wx = A1.shape
+            by, hy, wy = A2.shape
+
+            #mindspore中矩阵乘法不支持三维，需自己实现，把第0维当作batch_size
+            A1A2Mul = self.matmul(A1[0], A2[0])
+            for j in range(1, bx):
+                A1A2Mul = ops.concat((A1A2Mul, self.matmul(A1[j], A2[j])),0)
+            A1A2Mul = A1A2Mul.view(bx, hx, wy)
+            A1 = self.soft(A1A2Mul / A1.shape[-1])  # N V V
+
             A1 = A1 + A[i]
             A2 = x.view(N, C * T, V)
-            z = self.conv_d[i](self.matmul(A2, A1).view(N, C, T, V))
+
+            bx, hx, wx = A2.shape
+            by, hy, wy = A1.shape
+            # mindspore中矩阵乘法不支持三维，需自己实现，把第0维当作batch_size
+            A2A1Mul = self.matmul(A2[0], A1[0])
+            for k in range(1, bx):
+                A2A1Mul = ops.concat((A2A1Mul, self.matmul(A2[k], A1[k])))
+            A2A1Mul = A2A1Mul.view(bx, hx, wy)
+            z = self.conv_d[i](A2A1Mul.view(N, C, T, V))
             y = z + y if y is not None else z
 
         y = self.bn(y)
@@ -153,9 +166,9 @@ class AGCN(nn.Cell):
         self.l10 = TCN_GCN_unit(256, 256, A)
 
         self.fc = nn.Dense(256, num_class)
-        constant_init_weight = mindspore.common.initializer.Normal(sigma=math.sqrt(2. / num_class), mean=0.0)
-        constant_init_weight(self.fc.weight)
-        bn_init(self.data_bn, 1)
+        self.fc.weight = initializer(Normal(sigma=math.sqrt(2. / num_class), mean=0.0), self.fc.weight.shape, mindspore.float32)
+        bn_init(self.data_bnt, 1)
+        bn_init(self.data_bnc, 1)
 
     def construct(self, x):
         # B batch_size
