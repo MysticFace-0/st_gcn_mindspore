@@ -1,51 +1,49 @@
 import math
-
 import numpy as np
-import torch
-import torch.nn as nn
+
+import mindspore
+import mindspore.nn as nn
+from mindspore import Parameter, Tensor, ops
+from mindspore.common.initializer import initializer, HeNormal
+
 from torch.autograd import Variable
 
-
-def import_class(name):
-    components = name.split('.')
-    mod = __import__(components[0])
-    for comp in components[1:]:
-        mod = getattr(mod, comp)
-    return mod
+from utils.graph import Graph
 
 
 def conv_branch_init(conv, branches):
-    weight = conv.weight
-    n = weight.size(0)
-    k1 = weight.size(1)
-    k2 = weight.size(2)
-    nn.init.normal_(weight, 0, math.sqrt(2. / (n * k1 * k2 * branches)))
-    nn.init.constant_(conv.bias, 0)
+    n, k1, k2 = conv.weight.shape
+    constant_init_weight = mindspore.common.initializer.Normal(sigma=math.sqrt(2. / (n * k1 * k2 * branches)), mean=0.0)
+    constant_init_bias = mindspore.common.initializer.Constant(value=0)
+    constant_init_weight(conv.weight)
+    constant_init_bias(conv.bias)
 
 
 def conv_init(conv):
-    nn.init.kaiming_normal_(conv.weight, mode='fan_out')
-    nn.init.constant_(conv.bias, 0)
-
+    constant_init_bias = mindspore.common.initializer.Constant(value=0)
+    conv.weight = initializer(HeNormal(mode='fan_out'), conv.weight.shape, mindspore.float32)
+    constant_init_bias(conv.bias)
 
 def bn_init(bn, scale):
-    nn.init.constant_(bn.weight, scale)
-    nn.init.constant_(bn.bias, 0)
+    constant_init_weight = mindspore.common.initializer.Constant(value=scale)
+    constant_init_bias = mindspore.common.initializer.Constant(value=0)
+    constant_init_weight(bn.gamma.value())
+    constant_init_bias(bn.beta.value())
 
 
-class unit_tcn(nn.Module):
+class unit_tcn(nn.Cell):
     def __init__(self, in_channels, out_channels, kernel_size=9, stride=1):
         super(unit_tcn, self).__init__()
         pad = int((kernel_size - 1) / 2)
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=(kernel_size, 1), padding=(pad, 0),
-                              stride=(stride, 1))
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=(kernel_size, 1), padding=(pad, pad, 0, 0),
+                              pad_mode= "pad", stride=(stride, 1), has_bias=True)
 
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU()
         conv_init(self.conv)
         bn_init(self.bn, 1)
 
-    def forward(self, x):
+    def construct(self, x):
         x = self.bn(self.conv(x))
         return x
 
@@ -129,18 +127,16 @@ class TCN_GCN_unit(nn.Module):
         return self.relu(x)
 
 
-class Model(nn.Module):
-    def __init__(self, num_class=60, num_point=25, num_person=2, graph=None, graph_args=dict(), in_channels=3):
-        super(Model, self).__init__()
+class AGCN(nn.Cell):
+    def __init__(self, num_class=60, num_point=17, num_person=1, num_frames=100, graph_args=dict(), in_channels=3):
+        super(AGCN, self).__init__()
 
-        if graph is None:
-            raise ValueError()
-        else:
-            Graph = import_class(graph)
-            self.graph = Graph(**graph_args)
+        self.graph = Graph(**graph_args)
+        A = Parameter(Tensor(self.graph.A, dtype=mindspore.float32), requires_grad=False)
 
-        A = self.graph.A
-        self.data_bn = nn.BatchNorm1d(num_person * in_channels * num_point)
+        self.data_bnt = nn.BatchNorm1d(num_frames)
+        self.data_bnc = nn.BatchNorm1d(num_person  * A.shape[1] * in_channels) # M*V*C
+        # mindspore无三维算子，先要在L上归一化，再在C上归一化
 
         self.l1 = TCN_GCN_unit(3, 64, A, residual=False)
         self.l2 = TCN_GCN_unit(64, 64, A)
@@ -153,16 +149,35 @@ class Model(nn.Module):
         self.l9 = TCN_GCN_unit(256, 256, A)
         self.l10 = TCN_GCN_unit(256, 256, A)
 
-        self.fc = nn.Linear(256, num_class)
+        self.fc = nn.Dense(256, num_class)
         nn.init.normal_(self.fc.weight, 0, math.sqrt(2. / num_class))
         bn_init(self.data_bn, 1)
 
-    def forward(self, x):
-        N, C, T, V, M = x.size()
+    def construct(self, x):
+        # B batch_size
+        # N 视频个数
+        # C = 3(X, Y, S) 代表一个点的信息(位置 + 预测的可能性)
+        # T = 100 一个视频的帧数paper规定是100帧，不足的重头循环，多的clip
+        # V 17 根据不同的skeleton获得的节点数而定
+        # M = 1 人数，paper中将人数限定在最大1个人
 
-        x = x.permute(0, 4, 3, 1, 2).contiguous().view(N, M * V * C, T)
-        x = self.data_bn(x)
-        x = x.view(N, M, V, C, T).permute(0, 1, 3, 4, 2).contiguous().view(N * M, C, T, V)
+        # B, N, M, T, V, C to N, C, T, V, M
+        B, N, M, T, V, C = x.shape
+        x = x.view(B*N, M, T, V, C)
+        x = x.transpose(0,4,2,3,1)
+
+        N, C, T, V, M = x.shape
+
+        x = x.permute(0, 4, 3, 1, 2).view(N, M * V * C, T)
+
+        # 先对T做归一化
+        x = self.data_bnt(x.view(N * M * V * C, T)).view(N, M * V * C, T)
+        x = x.transpose((0, 2, 1))
+        # 再对C做归一化
+        x = self.data_bnc(x.view(N * T, M * V * C)).view(N, T, M * V * C)
+        x = x.transpose((0, 2, 1))
+
+        x = x.view(N, M, V, C, T).permute(0, 1, 3, 4, 2).view(N * M, C, T, V)
 
         x = self.l1(x)
         x = self.l2(x)
@@ -176,8 +191,20 @@ class Model(nn.Module):
         x = self.l10(x)
 
         # N*M,C,T,V
-        c_new = x.size(1)
+        c_new = x.shape[1]
         x = x.view(N, M, c_new, -1)
-        x = x.mean(3).mean(1)
+        x = ops.mean(x, 3, keep_dims=False)
+        x = ops.mean(x, 1, keep_dims=False)
 
-        return self.fc(x)
+        x=self.fc(x)
+
+        return x
+
+if __name__=="__main__":
+    # model测试
+    model = AGCN(num_class = 60, num_point = 17, num_person = 1, num_frames=100, graph_args = dict(layout='coco', mode='spatial'), in_channels = 3,)
+    shape = (2, 1, 1, 100, 17, 3) # dataloader直接读取的格式
+    uniformreal = mindspore.ops.UniformReal(seed=2)
+    x = uniformreal(shape)
+    y = model(x)
+    print(y.shape)

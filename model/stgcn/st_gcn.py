@@ -78,9 +78,9 @@ class STGCN(nn.Cell):
         # B batch_size
         # N 视频个数
         # C = 3(X, Y, S) 代表一个点的信息(位置 + 预测的可能性)
-        # T = 300 一个视频的帧数paper规定是300帧，不足的重头循环，多的clip
-        # V 18 根据不同的skeleton获得的节点数而定，coco是18个节点
-        # M = 2 人数，paper中将人数限定在最大2个人
+        # T = 100 一个视频的帧数paper规定是100帧，不足的重头循环，多的clip
+        # V 17 根据不同的skeleton获得的节点数而定
+        # M = 1 人数，paper中将人数限定在最大1个人
 
         # B, N, M, T, V, C to N, C, T, V, M
         B, N, M, T, V, C = x.shape
