@@ -6,7 +6,7 @@ import sys
 import mindspore
 from mindspore import ops
 
-from dataset import FLAG2DTrainDatasetGenerator, FLAG2DValDatasetGenerator, FLAG2DTestDatasetGenerator
+from dataset import FLAG3DTrainDatasetGenerator, FLAG3DValDatasetGenerator, FLAG3DTestDatasetGenerator
 from logs.logger import Logger
 
 from model.stgcn.st_gcn import STGCN
@@ -19,11 +19,11 @@ from mindspore.train.callback import ModelCheckpoint, CheckpointConfig
 def main(args: argparse):
     # dataloader
     print("loading train generator ...")
-    dataset_train_generator = FLAG2DTrainDatasetGenerator(args.data_path, args.num_frames)
+    dataset_train_generator = FLAG3DTrainDatasetGenerator(args.data_path, args.num_frames)
     print("loading val generator ...")
-    dataset_val_generator = FLAG2DValDatasetGenerator(args.data_path, args.num_frames)
+    dataset_val_generator = FLAG3DValDatasetGenerator(args.data_path, args.num_frames)
     print("loading test generator ...")
-    dataset_test_generator = FLAG2DTestDatasetGenerator(args.data_path, args.num_frames, args.test_num_clip)
+    dataset_test_generator = FLAG3DTestDatasetGenerator(args.data_path, args.num_frames, args.test_num_clip)
     dataset_train = ds.GeneratorDataset(dataset_train_generator, ["keypoint", "label"], shuffle=True).batch(
         args.batch_size, True)
     dataset_val = ds.GeneratorDataset(dataset_val_generator, ["keypoint", "label"], shuffle=True).batch(
@@ -148,6 +148,7 @@ def test(dataset_test, model, celoss, args):
         y = softmax(y)
         pred = ops.argmax(y, axis=1)
 
+
         total_acc_num += (pred == label).sum()
         total_loss += loss
 
@@ -163,9 +164,9 @@ if __name__ == "__main__":
         os.makedirs(logs_path)
     sys.stdout = Logger(logs_path + '/' + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')+".txt")
 
-    parser = argparse.ArgumentParser(description='stgcn for flag2d')
+    parser = argparse.ArgumentParser(description='stgcn for flag3d')
     # dataset parameter
-    parser.add_argument('--data_path', default="../data/FLAG/flag2d.pkl", type=str,
+    parser.add_argument('--data_path', default="../data/FLAG/flag3d.pkl", type=str,
                         help='where dataset locate')
     parser.add_argument('--logs_path', default=logs_path, type=str, help='where logs and ckpt locate')
     parser.add_argument('--resume', default=None, type=str, help='where trained model locate')
@@ -175,7 +176,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_frames', default=500, type=int, help='Number of frames for the single video')
     parser.add_argument('--test_num_clip', default=10, type=int, help='Number of num_clip for the test dataset')
     parser.add_argument('--num_class', default=60, type=int, help='Number of classes for the classification task')
-    parser.add_argument('--graph_args', default=dict(layout='coco', mode='stgcn_spatial'), type=dict,
+    parser.add_argument('--graph_args', default=dict(layout='nturgb+d', mode='stgcn_spatial'), type=dict,
                         help='The arguments for building the graph')
     parser.add_argument('--edge_importance', default=False, type=bool,
                         help='If ``True``, adds a learnable importance weighting to the edges of the graph')
@@ -198,4 +199,4 @@ if __name__ == "__main__":
 
 # cd autodl-tmp/st-gcn-mindspore
 # rm -rf training_logs
-# CUDA_VISIBLE_DEVICES=0 python train_stgcn_flag2d.py
+# CUDA_VISIBLE_DEVICES=0 python train_stgcn_flag3d.py

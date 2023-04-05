@@ -6,7 +6,7 @@ import mindspore.nn as nn
 from mindspore import Parameter, Tensor, ops
 from mindspore.common.initializer import initializer, HeNormal, Normal
 
-from utils.graph import Graph
+from .utils.graph import Graph
 
 
 def conv_branch_init(conv, branches):
@@ -219,7 +219,7 @@ class AGCN(nn.Cell):
 
 if __name__=="__main__":
     # model测试
-    model = AGCN(num_class = 60, num_point = 17, num_person = 1, num_frames=100, graph_args = dict(layout='coco', mode='spatial'), in_channels = 3,)
+    model = AGCN(num_class = 60, num_point = 17, num_person = 1, num_frames=100, graph_args = dict(layout='coco', mode='spatial'), in_channels = 3)
     shape = (2, 1, 1, 100, 17, 3) # dataloader直接读取的格式
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)

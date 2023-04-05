@@ -21,6 +21,7 @@ class FLAG3DTrainDatasetGenerator():
             self.dataset = pickle.load(dataset) # No changed format dataset
 
         self.class_num = 60
+        self.keypoint_num = 25
         self.dataset_len = len(self.dataset['split']['train'])
         self.dataset = self.dataset['annotations'][:self.dataset_len]
 
@@ -54,6 +55,7 @@ class FLAG3DValDatasetGenerator():
             self.dataset = pickle.load(dataset) # No changed format dataset
 
         self.class_num = 60
+        self.keypoint_num = 25
         self.dataset_len = len(self.dataset['split']['val'])
         self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):]
 
@@ -86,6 +88,7 @@ class FLAG3DTestDatasetGenerator():
             self.dataset = pickle.load(dataset) # No changed format dataset
 
         self.class_num = 60
+        self.keypoint_num = 25
         self.dataset_len = len(self.dataset['split']['val'])
         self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):]
 

@@ -9,7 +9,7 @@ from mindspore import ops
 from dataset import FLAG2DTrainDatasetGenerator, FLAG2DValDatasetGenerator, FLAG2DTestDatasetGenerator
 from logs.logger import Logger
 
-from model.stgcn.st_gcn import STGCN
+from model.sagcn.agcn import AGCN
 
 import mindspore.dataset as ds
 import mindspore.nn as nn
@@ -32,7 +32,7 @@ def main(args: argparse):
         args.batch_size, True)
 
     # model
-    model = STGCN(args.in_channels, args.num_frames, args.num_class, args.graph_args, args.edge_importance)
+    model = AGCN(args.num_class, args.num_point, args.num_person, args.num_frames, args.graph_args, args.in_channels)
 
     # loss
     celoss = nn.CrossEntropyLoss()
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         os.makedirs(logs_path)
     sys.stdout = Logger(logs_path + '/' + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')+".txt")
 
-    parser = argparse.ArgumentParser(description='stgcn for flag2d')
+    parser = argparse.ArgumentParser(description='2sagcn for flag2d')
     # dataset parameter
     parser.add_argument('--data_path', default="../data/FLAG/flag2d.pkl", type=str,
                         help='where dataset locate')
@@ -175,10 +175,11 @@ if __name__ == "__main__":
     parser.add_argument('--num_frames', default=500, type=int, help='Number of frames for the single video')
     parser.add_argument('--test_num_clip', default=10, type=int, help='Number of num_clip for the test dataset')
     parser.add_argument('--num_class', default=60, type=int, help='Number of classes for the classification task')
-    parser.add_argument('--graph_args', default=dict(layout='coco', mode='stgcn_spatial'), type=dict,
+    parser.add_argument('--num_point', default=17, type=int, help='Number of keypoints for the classification task')
+    parser.add_argument('--num_person', default=1, type=int, help='Number of person for the classification task')
+    parser.add_argument('--graph_args', default=dict(layout='coco', mode='spatial'), type=dict,
                         help='The arguments for building the graph')
-    parser.add_argument('--edge_importance', default=False, type=bool,
-                        help='If ``True``, adds a learnable importance weighting to the edges of the graph')
+
     # optimizer parameter
     parser.add_argument('--lr', default=0.8, type=float, help='learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
@@ -198,4 +199,4 @@ if __name__ == "__main__":
 
 # cd autodl-tmp/st-gcn-mindspore
 # rm -rf training_logs
-# CUDA_VISIBLE_DEVICES=0 python train_stgcn_flag2d.py
+# CUDA_VISIBLE_DEVICES=0 python train_2sagcn_flag2d.py

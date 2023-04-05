@@ -234,12 +234,12 @@ class st_gcn(nn.Cell):
 if __name__=="__main__":
     # model测试
     model = STGCN(3, 100, 60, dict(layout='coco', mode='stgcn_spatial'), False)
-    shape = (2, 1, 1, 100, 17, 3) # dataloader直接读取的格式
+    shape = (2, 1, 1, 100, 25, 3) # dataloader直接读取的格式
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
     y = model(x)
     print(y.shape)
-    #(2, 1, 1, 100, 17, 3)->(2, 60)     (2, 3, 1, 100, 17, 3)->(6, 60)
+    #(2, 1, 1, 100, 17, 3)->(2, 60)     (2, 10, 1, 100, 17, 3)->(20, 60)
 
     # # stgcn测试
     # st_gcn = st_gcn(3, 64, (9, 1), 1)
