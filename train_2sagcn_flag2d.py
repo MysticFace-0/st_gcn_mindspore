@@ -7,6 +7,7 @@ import mindspore
 from mindspore import ops
 
 from dataset import FLAG2DTrainDatasetGenerator, FLAG2DValDatasetGenerator, FLAG2DTestDatasetGenerator
+from evaluation.evaluation import top_k_accuracy
 from logs.logger import Logger
 
 from model.sagcn.agcn import AGCN
@@ -105,8 +106,8 @@ def train(dataset_train, model, celoss, optimizer, args):
 def val(dataset_val, model, celoss, args):
     i = 0  # iteration num
     total_loss = 0.
-    total_acc_num = 0.
-    softmax = ops.Softmax()
+    total_acc = 0.
+
     model.set_train(False)
     for data in dataset_val.create_dict_iterator():
         x = data["keypoint"]
@@ -114,24 +115,23 @@ def val(dataset_val, model, celoss, args):
         y = model(x)
         # 求loss
         loss = celoss(y, label)
-        # 求预测值（先做softmax）
-        y = softmax(y)
-        pred = ops.argmax(y, axis=1)
+        # 求每个batch准确率
+        batch_acc = top_k_accuracy(y.numpy(), label.numpy(), args.topk)
 
-        total_acc_num += (pred == label).sum()
+        total_acc += batch_acc[0]
         total_loss += loss
 
         i += 1
 
-    accuracy = total_acc_num/ (args.batch_size * i)
+    accuracy = total_acc/ i
     print("val_total_avg_loss: ", total_loss / (args.batch_size * i), "accuracy: ", accuracy)
     return accuracy
 
 def test(dataset_test, model, celoss, args):
     i = 0  # iteration num
     total_loss = 0.
-    total_acc_num = 0.
-    softmax = ops.Softmax()
+    total_acc = 0.
+
     model.set_train(False)
     for data in dataset_test.create_dict_iterator():
         x = data["keypoint"]
@@ -144,16 +144,15 @@ def test(dataset_test, model, celoss, args):
         # 求loss
         loss = celoss(y, label)
 
-        # 求预测值（先做softmax）
-        y = softmax(y)
-        pred = ops.argmax(y, axis=1)
+        # 求每个batch准确率
+        batch_acc = top_k_accuracy(y.numpy(), label.numpy(), args.topk)
 
-        total_acc_num += (pred == label).sum()
+        total_acc += batch_acc[0]
         total_loss += loss
 
         i += 1
 
-    accuracy = total_acc_num / (args.batch_size * i)
+    accuracy = total_acc / i
     print("test_total_avg_loss: ", total_loss / (args.batch_size * i), "accuracy: ", accuracy)
     return accuracy
 
@@ -192,6 +191,8 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', default=30, type=int, help='epochs')
     parser.add_argument('--iter', default=100, type=int, help='iteration')
     parser.add_argument('--mode', default="train", type=str, help='train or test')
+    # evaluate parameter
+    parser.add_argument('--topk', default=(1,), type=dict, help='top k for evaluation')
 
     args = parser.parse_args()
     print(args)
