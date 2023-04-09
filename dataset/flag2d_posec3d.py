@@ -1,7 +1,7 @@
 import pickle
 import mindspore.dataset as ds
 
-from dataset.transform_posec3d import UniformSampleFrames, PoseDecode, PoseCompact
+from dataset.transform_posec3d import UniformSampleFrames, PoseDecode, PoseCompact, Resize
     # Resize, RandomResizedCrop, \
     # Flip, GeneratePoseTarget, FormatShape, Collect, ToTensor
 
@@ -29,12 +29,14 @@ class FLAG2DTrainDatasetGenerator():
         self.class_num = 60
         self.keypoint_num = 17
         self.dataset_len = len(self.dataset['split']['train'])
-        self.dataset = self.dataset['annotations'][:self.dataset_len]#[:self.dataset_len]
+        self.dataset = self.dataset['annotations'][:20]#[:self.dataset_len]
 
         # origin: (1, 1045, 17, 2)
         self.UniformSampleFrames = UniformSampleFrames(clip_len, num_clips, test_mode) # (1, 1045, 17, 3)
+        self.Resize1 = Resize(scale=(-1, 64))
 
-        for i in range(self.dataset_len):
+        # for i in range(self.dataset_len):
+        for i in range(20):
             self.dataset[i] = self.UniformSampleFrames.transform(self.dataset[i])
             self.dataset[i] = PoseDecode.transform(self.dataset[i])
             self.dataset[i] = PoseCompact.transform(self.dataset[i])
@@ -51,15 +53,19 @@ class FLAG2DTrainDatasetGenerator():
         return self.dataset[index]['keypoint'], self.dataset[index]['label']
 
     def __len__(self):
-        return self.dataset_len
+        return 20
 
     def class_num(self):
         return self.class_num
 
 if __name__=="__main__":
     dataset_generator = FLAG2DTrainDatasetGenerator("D:\\data\\flag2d.pkl")
-    dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(4, True)
+    dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(2, True)
+    i=0
     for data in dataset.create_dict_iterator():
+        i+=1
+        if i>4:
+            break
         # Tensor(32, 10, 1, 500, 17, 3) Tensor(32)
         # (Batch_size, num_clips, num_person, frames, num_keypoint, keypoint_location+keypoint_score) (label)
         print(data["keypoint"].shape, data["label"])

@@ -1,6 +1,40 @@
 import numpy as np
 import random
+import cv2
 from mindspore.common.tensor import Tensor
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
+cv2_interp_codes = {
+    'nearest': cv2.INTER_NEAREST,
+    'bilinear': cv2.INTER_LINEAR,
+    'bicubic': cv2.INTER_CUBIC,
+    'area': cv2.INTER_AREA,
+    'lanczos': cv2.INTER_LANCZOS4
+}
+
+if Image is not None:
+    if hasattr(Image, 'Resampling'):
+        pillow_interp_codes = {
+            'nearest': Image.Resampling.NEAREST,
+            'bilinear': Image.Resampling.BILINEAR,
+            'bicubic': Image.Resampling.BICUBIC,
+            'box': Image.Resampling.BOX,
+            'lanczos': Image.Resampling.LANCZOS,
+            'hamming': Image.Resampling.HAMMING
+        }
+    else:
+        pillow_interp_codes = {
+            'nearest': Image.NEAREST,
+            'bilinear': Image.BILINEAR,
+            'bicubic': Image.BICUBIC,
+            'box': Image.BOX,
+            'lanczos': Image.LANCZOS,
+            'hamming': Image.HAMMING
+        }
 
 class UniformSampleFrames():
     """Uniformly sample frames from the video.
@@ -338,14 +372,71 @@ def _init_lazy_if_proper(results, lazy):
     else:
         assert 'lazy' not in results, 'Use Fuse after lazy operations'
 
+def _scale_size(
+    size: tuple,
+    scale: set.union,
+) -> tuple:
+    """Rescale a size by a ratio.
+
+    Args:
+        size (tuple[int]): (w, h).
+        scale (float | tuple(float)): Scaling factor.
+
+    Returns:
+        tuple[int]: scaled size.
+    """
+    if isinstance(scale, (float, int)):
+        scale = (scale, scale)
+    w, h = size
+    return int(w * float(scale[0]) + 0.5), int(h * float(scale[1]) + 0.5)
+
+
+def rescale_size(old_size: tuple,
+                 scale: set.union,
+                 return_scale: bool = False) -> tuple:
+    """Calculate the new size to be rescaled to.
+
+    Args:
+        old_size (tuple[int]): The old size (w, h) of image.
+        scale (float | tuple[int]): The scaling factor or maximum size.
+            If it is a float number, then the image will be rescaled by this
+            factor, else if it is a tuple of 2 integers, then the image will
+            be rescaled as large as possible within the scale.
+        return_scale (bool): Whether to return the scaling factor besides the
+            rescaled image size.
+
+    Returns:
+        tuple[int]: The new rescaled image size.
+    """
+    w, h = old_size
+    if isinstance(scale, (float, int)):
+        if scale <= 0:
+            raise ValueError(f'Invalid scale {scale}, must be positive.')
+        scale_factor = scale
+    elif isinstance(scale, tuple):
+        max_long_edge = max(scale)
+        max_short_edge = min(scale)
+        scale_factor = min(max_long_edge / max(h, w),
+                           max_short_edge / min(h, w))
+    else:
+        raise TypeError(
+            f'Scale must be a number or tuple of int, but got {type(scale)}')
+
+    new_size = _scale_size((w, h), scale_factor)
+
+    if return_scale:
+        return new_size, scale_factor
+    else:
+        return new_size
+
 def imresize(
     img: np.ndarray,
-    size: Tuple[int, int],
+    size: tuple,
     return_scale: bool = False,
     interpolation: str = 'bilinear',
-    out: Optional[np.ndarray] = None,
-    backend: Optional[str] = None
-) -> Union[Tuple[np.ndarray, float, float], np.ndarray]:
+    out: np.ndarray = None,
+    backend: str = None
+) -> set.union:
     """Resize image to a given size.
 
     Args:
@@ -366,6 +457,7 @@ def imresize(
     """
     h, w = img.shape[:2]
     if backend is None:
+        imread_backend = 'cv2'
         backend = imread_backend
     if backend not in ['cv2', 'pillow']:
         raise ValueError(f'backend: {backend} is not supported for resize.'
@@ -435,7 +527,7 @@ class Resize():
     def _resize_imgs(self, imgs, new_w, new_h):
         """Static method for resizing keypoint."""
         return [
-            mmcv.imresize(
+            imresize(
                 img, (new_w, new_h), interpolation=self.interpolation)
             for img in imgs
         ]
@@ -475,7 +567,7 @@ class Resize():
         img_h, img_w = results['img_shape']
 
         if self.keep_ratio:
-            new_w, new_h = mmcv.rescale_size((img_w, img_h), self.scale)
+            new_w, new_h = rescale_size((img_w, img_h), self.scale)
         else:
             new_w, new_h = self.scale
 
@@ -517,7 +609,7 @@ class Resize():
                     f'lazy={self.lazy})')
         return repr_str
 
-class RandomCrop(BaseTransform):
+class RandomCrop():
     """Vanilla square random crop that specifics the output size.
 
     Required keys in results are "img_shape", "keypoint" (optional), "imgs"
@@ -664,7 +756,7 @@ class RandomCrop(BaseTransform):
         return repr_str
 
 
-@TRANSFORMS.register_module()
+
 class RandomResizedCrop(RandomCrop):
     """Random crop that specifics the area and height-weight ratio range.
 
