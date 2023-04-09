@@ -908,638 +908,667 @@ class RandomResizedCrop(RandomCrop):
                     f'lazy={self.lazy})')
         return repr_str
 
-# class Flip():
-#     """Flip the input images with a probability.
-#
-#     Reverse the order of elements in the given imgs with a specific direction.
-#     The shape of the imgs is preserved, but the elements are reordered.
-#
-#     Required keys are "img_shape", "modality", "imgs" (optional), "keypoint"
-#     (optional), added or modified keys are "imgs", "keypoint", "lazy" and
-#     "flip_direction". Required keys in "lazy" is None, added or modified key
-#     are "flip" and "flip_direction". The Flip augmentation should be placed
-#     after any cropping / reshaping augmentations, to make sure crop_quadruple
-#     is calculated properly.
-#
-#     Args:
-#         flip_ratio (float): Probability of implementing flip. Default: 0.5.
-#         direction (str): Flip imgs horizontally or vertically. Options are
-#             "horizontal" | "vertical". Default: "horizontal".
-#         flip_label_map (Dict[int, int] | None): Transform the label of the
-#             flipped image with the specific label. Default: None.
-#         left_kp (list[int]): Indexes of left keypoints, used to flip keypoints.
-#             Default: None.
-#         right_kp (list[ind]): Indexes of right keypoints, used to flip
-#             keypoints. Default: None.
-#         lazy (bool): Determine whether to apply lazy operation. Default: False.
-#     """
-#     _directions = ['horizontal', 'vertical']
-#
-#     def __init__(self,
-#                  flip_ratio=0.5,
-#                  direction='horizontal',
-#                  flip_label_map=None,
-#                  left_kp=None,
-#                  right_kp=None,
-#                  lazy=False):
-#         if direction not in self._directions:
-#             raise ValueError(f'Direction {direction} is not supported. '
-#                              f'Currently support ones are {self._directions}')
-#         self.flip_ratio = flip_ratio
-#         self.direction = direction
-#         self.flip_label_map = flip_label_map
-#         self.left_kp = left_kp
-#         self.right_kp = right_kp
-#         self.lazy = lazy
-#
-#     def _flip_imgs(self, imgs, modality):
-#         """Utility function for flipping images."""
-#         _ = [mmcv.imflip_(img, self.direction) for img in imgs]
-#         lt = len(imgs)
-#         if modality == 'Flow':
-#             # The 1st frame of each 2 frames is flow-x
-#             for i in range(0, lt, 2):
-#                 imgs[i] = mmcv.iminvert(imgs[i])
-#         return imgs
-#
-#     def _flip_kps(self, kps, kpscores, img_width):
-#         """Utility function for flipping keypoint."""
-#         kp_x = kps[..., 0]
-#         kp_x[kp_x != 0] = img_width - kp_x[kp_x != 0]
-#         new_order = list(range(kps.shape[2]))
-#         if self.left_kp is not None and self.right_kp is not None:
-#             for left, right in zip(self.left_kp, self.right_kp):
-#                 new_order[left] = right
-#                 new_order[right] = left
-#         kps = kps[:, :, new_order]
-#         if kpscores is not None:
-#             kpscores = kpscores[:, :, new_order]
-#         return kps, kpscores
-#
-#     @staticmethod
-#     def _box_flip(box, img_width):
-#         """Flip the bounding boxes given the width of the image.
-#
-#         Args:
-#             box (np.ndarray): The bounding boxes.
-#             img_width (int): The img width.
-#         """
-#         box_ = box.copy()
-#         box_[..., 0::4] = img_width - box[..., 2::4]
-#         box_[..., 2::4] = img_width - box[..., 0::4]
-#         return box_
-#
-#     def transform(self, results):
-#         """Performs the Flip augmentation.
-#
-#         Args:
-#             results (dict): The resulting dict to be modified and passed
-#                 to the next transform in pipeline.
-#         """
-#         _init_lazy_if_proper(results, self.lazy)
-#         if 'keypoint' in results:
-#             assert not self.lazy, ('Keypoint Augmentations are not compatible '
-#                                    'with lazy == True')
-#             assert self.direction == 'horizontal', (
-#                 'Only horizontal flips are'
-#                 'supported for human keypoints')
-#
-#         modality = results['modality']
-#         if modality == 'Flow':
-#             assert self.direction == 'horizontal'
-#
-#         flip = np.random.rand() < self.flip_ratio
-#
-#         results['flip'] = flip
-#         results['flip_direction'] = self.direction
-#         img_width = results['img_shape'][1]
-#
-#         if self.flip_label_map is not None and flip:
-#             results['label'] = self.flip_label_map.get(results['label'],
-#                                                        results['label'])
-#
-#         if not self.lazy:
-#             if flip:
-#                 if 'imgs' in results:
-#                     results['imgs'] = self._flip_imgs(results['imgs'],
-#                                                       modality)
-#                 if 'keypoint' in results:
-#                     kp = results['keypoint']
-#                     kpscore = results.get('keypoint_score', None)
-#                     kp, kpscore = self._flip_kps(kp, kpscore, img_width)
-#                     results['keypoint'] = kp
-#                     if 'keypoint_score' in results:
-#                         results['keypoint_score'] = kpscore
-#         else:
-#             lazyop = results['lazy']
-#             if lazyop['flip']:
-#                 raise NotImplementedError('Use one Flip please')
-#             lazyop['flip'] = flip
-#             lazyop['flip_direction'] = self.direction
-#
-#         if 'gt_bboxes' in results and flip:
-#             assert not self.lazy and self.direction == 'horizontal'
-#             width = results['img_shape'][1]
-#             results['gt_bboxes'] = self._box_flip(results['gt_bboxes'], width)
-#             if 'proposals' in results and results['proposals'] is not None:
-#                 assert results['proposals'].shape[1] == 4
-#                 results['proposals'] = self._box_flip(results['proposals'],
-#                                                       width)
-#
-#         return results
-#
-#     def __repr__(self):
-#         repr_str = (
-#             f'{self.__class__.__name__}('
-#             f'flip_ratio={self.flip_ratio}, direction={self.direction}, '
-#             f'flip_label_map={self.flip_label_map}, lazy={self.lazy})')
-#         return repr_str
-#
-# class GeneratePoseTarget(BaseTransform):
-#     """Generate pseudo heatmaps based on joint coordinates and confidence.
-#
-#     Required Keys:
-#
-#         - keypoint
-#         - keypoint_score (optional)
-#         - img_shape
-#
-#     Added Keys:
-#
-#         - imgs (optional)
-#         - heatmap_imgs (optional)
-#
-#     Args:
-#         sigma (float): The sigma of the generated gaussian map.
-#             Defaults to 0.6.
-#         use_score (bool): Use the confidence score of keypoints as the maximum
-#             of the gaussian maps. Defaults to True.
-#         with_kp (bool): Generate pseudo heatmaps for keypoints.
-#             Defaults to True.
-#         with_limb (bool): Generate pseudo heatmaps for limbs. At least one of
-#             'with_kp' and 'with_limb' should be True. Defaults to False.
-#         skeletons (tuple[tuple]): The definition of human skeletons.
-#             Defaults to ``((0, 1), (0, 2), (1, 3), (2, 4), (0, 5), (5, 7),
-#                          (7, 9), (0, 6), (6, 8), (8, 10), (5, 11), (11, 13),
-#                          (13, 15), (6, 12), (12, 14), (14, 16), (11, 12))``,
-#             which is the definition of COCO-17p skeletons.
-#         double (bool): Output both original heatmaps and flipped heatmaps.
-#             Defaults to False.
-#         left_kp (tuple[int]): Indexes of left keypoints, which is used when
-#             flipping heatmaps. Defaults to (1, 3, 5, 7, 9, 11, 13, 15),
-#             which is left keypoints in COCO-17p.
-#         right_kp (tuple[int]): Indexes of right keypoints, which is used when
-#             flipping heatmaps. Defaults to (2, 4, 6, 8, 10, 12, 14, 16),
-#             which is right keypoints in COCO-17p.
-#         left_limb (tuple[int]): Indexes of left limbs, which is used when
-#             flipping heatmaps. Defaults to (0, 2, 4, 5, 6, 10, 11, 12),
-#             which is left limbs of skeletons we defined for COCO-17p.
-#         right_limb (tuple[int]): Indexes of right limbs, which is used when
-#             flipping heatmaps. Defaults to (1, 3, 7, 8, 9, 13, 14, 15),
-#             which is right limbs of skeletons we defined for COCO-17p.
-#         scaling (float): The ratio to scale the heatmaps. Defaults to 1.
-#     """
-#
-#     def __init__(self,
-#                  sigma: float = 0.6,
-#                  use_score: bool = True,
-#                  with_kp: bool = True,
-#                  with_limb: bool = False,
-#                  skeletons: Tuple[Tuple[int]] = ((0, 1), (0, 2), (1, 3),
-#                                                  (2, 4), (0, 5), (5, 7),
-#                                                  (7, 9), (0, 6), (6, 8),
-#                                                  (8, 10), (5, 11), (11, 13),
-#                                                  (13, 15), (6, 12), (12, 14),
-#                                                  (14, 16), (11, 12)),
-#                  double: bool = False,
-#                  left_kp: Tuple[int] = (1, 3, 5, 7, 9, 11, 13, 15),
-#                  right_kp: Tuple[int] = (2, 4, 6, 8, 10, 12, 14, 16),
-#                  left_limb: Tuple[int] = (0, 2, 4, 5, 6, 10, 11, 12),
-#                  right_limb: Tuple[int] = (1, 3, 7, 8, 9, 13, 14, 15),
-#                  scaling: float = 1.) -> None:
-#
-#         self.sigma = sigma
-#         self.use_score = use_score
-#         self.with_kp = with_kp
-#         self.with_limb = with_limb
-#         self.double = double
-#
-#         # an auxiliary const
-#         self.eps = 1e-4
-#
-#         assert self.with_kp or self.with_limb, (
-#             'At least one of "with_limb" '
-#             'and "with_kp" should be set as True.')
-#         self.left_kp = left_kp
-#         self.right_kp = right_kp
-#         self.skeletons = skeletons
-#         self.left_limb = left_limb
-#         self.right_limb = right_limb
-#         self.scaling = scaling
-#
-#     def generate_a_heatmap(self, arr: np.ndarray, centers: np.ndarray,
-#                            max_values: np.ndarray) -> None:
-#         """Generate pseudo heatmap for one keypoint in one frame.
-#
-#         Args:
-#             arr (np.ndarray): The array to store the generated heatmaps.
-#                 Shape: img_h * img_w.
-#             centers (np.ndarray): The coordinates of corresponding keypoints
-#                 (of multiple persons). Shape: M * 2.
-#             max_values (np.ndarray): The max values of each keypoint. Shape: M.
-#         """
-#
-#         sigma = self.sigma
-#         img_h, img_w = arr.shape
-#
-#         for center, max_value in zip(centers, max_values):
-#             if max_value < self.eps:
-#                 continue
-#
-#             mu_x, mu_y = center[0], center[1]
-#             st_x = max(int(mu_x - 3 * sigma), 0)
-#             ed_x = min(int(mu_x + 3 * sigma) + 1, img_w)
-#             st_y = max(int(mu_y - 3 * sigma), 0)
-#             ed_y = min(int(mu_y + 3 * sigma) + 1, img_h)
-#             x = np.arange(st_x, ed_x, 1, np.float32)
-#             y = np.arange(st_y, ed_y, 1, np.float32)
-#
-#             # if the keypoint not in the heatmap coordinate system
-#             if not (len(x) and len(y)):
-#                 continue
-#             y = y[:, None]
-#
-#             patch = np.exp(-((x - mu_x)**2 + (y - mu_y)**2) / 2 / sigma**2)
-#             patch = patch * max_value
-#             arr[st_y:ed_y, st_x:ed_x] = \
-#                 np.maximum(arr[st_y:ed_y, st_x:ed_x], patch)
-#
-#     def generate_a_limb_heatmap(self, arr: np.ndarray, starts: np.ndarray,
-#                                 ends: np.ndarray, start_values: np.ndarray,
-#                                 end_values: np.ndarray) -> None:
-#         """Generate pseudo heatmap for one limb in one frame.
-#
-#         Args:
-#             arr (np.ndarray): The array to store the generated heatmaps.
-#                 Shape: img_h * img_w.
-#             starts (np.ndarray): The coordinates of one keypoint in the
-#                 corresponding limbs. Shape: M * 2.
-#             ends (np.ndarray): The coordinates of the other keypoint in the
-#                 corresponding limbs. Shape: M * 2.
-#             start_values (np.ndarray): The max values of one keypoint in the
-#                 corresponding limbs. Shape: M.
-#             end_values (np.ndarray): The max values of the other keypoint
-#                 in the corresponding limbs. Shape: M.
-#         """
-#
-#         sigma = self.sigma
-#         img_h, img_w = arr.shape
-#
-#         for start, end, start_value, end_value in zip(starts, ends,
-#                                                       start_values,
-#                                                       end_values):
-#             value_coeff = min(start_value, end_value)
-#             if value_coeff < self.eps:
-#                 continue
-#
-#             min_x, max_x = min(start[0], end[0]), max(start[0], end[0])
-#             min_y, max_y = min(start[1], end[1]), max(start[1], end[1])
-#
-#             min_x = max(int(min_x - 3 * sigma), 0)
-#             max_x = min(int(max_x + 3 * sigma) + 1, img_w)
-#             min_y = max(int(min_y - 3 * sigma), 0)
-#             max_y = min(int(max_y + 3 * sigma) + 1, img_h)
-#
-#             x = np.arange(min_x, max_x, 1, np.float32)
-#             y = np.arange(min_y, max_y, 1, np.float32)
-#
-#             if not (len(x) and len(y)):
-#                 continue
-#
-#             y = y[:, None]
-#             x_0 = np.zeros_like(x)
-#             y_0 = np.zeros_like(y)
-#
-#             # distance to start keypoints
-#             d2_start = ((x - start[0])**2 + (y - start[1])**2)
-#
-#             # distance to end keypoints
-#             d2_end = ((x - end[0])**2 + (y - end[1])**2)
-#
-#             # the distance between start and end keypoints.
-#             d2_ab = ((start[0] - end[0])**2 + (start[1] - end[1])**2)
-#
-#             if d2_ab < 1:
-#                 self.generate_a_heatmap(arr, start[None], start_value[None])
-#                 continue
-#
-#             coeff = (d2_start - d2_end + d2_ab) / 2. / d2_ab
-#
-#             a_dominate = coeff <= 0
-#             b_dominate = coeff >= 1
-#             seg_dominate = 1 - a_dominate - b_dominate
-#
-#             position = np.stack([x + y_0, y + x_0], axis=-1)
-#             projection = start + np.stack([coeff, coeff], axis=-1) * (
-#                 end - start)
-#             d2_line = position - projection
-#             d2_line = d2_line[:, :, 0]**2 + d2_line[:, :, 1]**2
-#             d2_seg = (
-#                 a_dominate * d2_start + b_dominate * d2_end +
-#                 seg_dominate * d2_line)
-#
-#             patch = np.exp(-d2_seg / 2. / sigma**2)
-#             patch = patch * value_coeff
-#
-#             arr[min_y:max_y, min_x:max_x] = \
-#                 np.maximum(arr[min_y:max_y, min_x:max_x], patch)
-#
-#     def generate_heatmap(self, arr: np.ndarray, kps: np.ndarray,
-#                          max_values: np.ndarray) -> None:
-#         """Generate pseudo heatmap for all keypoints and limbs in one frame (if
-#         needed).
-#
-#         Args:
-#             arr (np.ndarray): The array to store the generated heatmaps.
-#                 Shape: V * img_h * img_w.
-#             kps (np.ndarray): The coordinates of keypoints in this frame.
-#                 Shape: M * V * 2.
-#             max_values (np.ndarray): The confidence score of each keypoint.
-#                 Shape: M * V.
-#         """
-#
-#         if self.with_kp:
-#             num_kp = kps.shape[1]
-#             for i in range(num_kp):
-#                 self.generate_a_heatmap(arr[i], kps[:, i], max_values[:, i])
-#
-#         if self.with_limb:
-#             for i, limb in enumerate(self.skeletons):
-#                 start_idx, end_idx = limb
-#                 starts = kps[:, start_idx]
-#                 ends = kps[:, end_idx]
-#
-#                 start_values = max_values[:, start_idx]
-#                 end_values = max_values[:, end_idx]
-#                 self.generate_a_limb_heatmap(arr[i], starts, ends,
-#                                              start_values, end_values)
-#
-#     def gen_an_aug(self, results: Dict) -> np.ndarray:
-#         """Generate pseudo heatmaps for all frames.
-#
-#         Args:
-#             results (dict): The dictionary that contains all info of a sample.
-#
-#         Returns:
-#             np.ndarray: The generated pseudo heatmaps.
-#         """
-#
-#         all_kps = results['keypoint'].astype(np.float32)
-#         kp_shape = all_kps.shape
-#
-#         if 'keypoint_score' in results:
-#             all_kpscores = results['keypoint_score']
-#         else:
-#             all_kpscores = np.ones(kp_shape[:-1], dtype=np.float32)
-#
-#         img_h, img_w = results['img_shape']
-#
-#         # scale img_h, img_w and kps
-#         img_h = int(img_h * self.scaling + 0.5)
-#         img_w = int(img_w * self.scaling + 0.5)
-#         all_kps[..., :2] *= self.scaling
-#
-#         num_frame = kp_shape[1]
-#         num_c = 0
-#         if self.with_kp:
-#             num_c += all_kps.shape[2]
-#         if self.with_limb:
-#             num_c += len(self.skeletons)
-#
-#         ret = np.zeros([num_frame, num_c, img_h, img_w], dtype=np.float32)
-#
-#         for i in range(num_frame):
-#             # M, V, C
-#             kps = all_kps[:, i]
-#             # M, C
-#             kpscores = all_kpscores[:, i] if self.use_score else \
-#                 np.ones_like(all_kpscores[:, i])
-#
-#             self.generate_heatmap(ret[i], kps, kpscores)
-#         return ret
-#
-#     def transform(self, results: Dict) -> Dict:
-#         """Generate pseudo heatmaps based on joint coordinates and confidence.
-#
-#         Args:
-#             results (dict): The resulting dict to be modified and passed
-#                 to the next transform in pipeline.
-#         """
-#         heatmap = self.gen_an_aug(results)
-#         key = 'heatmap_imgs' if 'imgs' in results else 'imgs'
-#
-#         if self.double:
-#             indices = np.arange(heatmap.shape[1], dtype=np.int64)
-#             left, right = (self.left_kp, self.right_kp) if self.with_kp else (
-#                 self.left_limb, self.right_limb)
-#             for l, r in zip(left, right):  # noqa: E741
-#                 indices[l] = r
-#                 indices[r] = l
-#             heatmap_flip = heatmap[..., ::-1][:, indices]
-#             heatmap = np.concatenate([heatmap, heatmap_flip])
-#         results[key] = heatmap
-#         return results
-#
-#     def __repr__(self) -> str:
-#         repr_str = (f'{self.__class__.__name__}('
-#                     f'sigma={self.sigma}, '
-#                     f'use_score={self.use_score}, '
-#                     f'with_kp={self.with_kp}, '
-#                     f'with_limb={self.with_limb}, '
-#                     f'skeletons={self.skeletons}, '
-#                     f'double={self.double}, '
-#                     f'left_kp={self.left_kp}, '
-#                     f'right_kp={self.right_kp}, '
-#                     f'left_limb={self.left_limb}, '
-#                     f'right_limb={self.right_limb}, '
-#                     f'scaling={self.scaling})')
-#         return repr_str
-#
-# class FormatShape(BaseTransform):
-#     """Format final imgs shape to the given input_format.
-#
-#     Required keys:
-#         - imgs (optional)
-#         - heatmap_imgs (optional)
-#         - num_clips
-#         - clip_len
-#
-#     Modified Keys:
-#         - imgs (optional)
-#         - input_shape (optional)
-#
-#     Added Keys:
-#         - heatmap_input_shape (optional)
-#
-#     Args:
-#         input_format (str): Define the final data format.
-#         collapse (bool): To collapse input_format N... to ... (NCTHW to CTHW,
-#             etc.) if N is 1. Should be set as True when training and testing
-#             detectors. Defaults to False.
-#     """
-#
-#     def __init__(self, input_format: str, collapse: bool = False) -> None:
-#         self.input_format = input_format
-#         self.collapse = collapse
-#         if self.input_format not in [
-#                 'NCTHW', 'NCHW', 'NCHW_Flow', 'NCTHW_Heatmap', 'NPTCHW'
-#         ]:
-#             raise ValueError(
-#                 f'The input format {self.input_format} is invalid.')
-#
-#     def transform(self, results: Dict) -> Dict:
-#         """Performs the FormatShape formatting.
-#
-#         Args:
-#             results (dict): The resulting dict to be modified and passed
-#                 to the next transform in pipeline.
-#         """
-#         if not isinstance(results['imgs'], np.ndarray):
-#             results['imgs'] = np.array(results['imgs'])
-#
-#         # [M x H x W x C]
-#         # M = 1 * N_crops * N_clips * T
-#         if self.collapse:
-#             assert results['num_clips'] == 1
-#
-#         if self.input_format == 'NCTHW':
-#             if 'imgs' in results:
-#                 imgs = results['imgs']
-#                 num_clips = results['num_clips']
-#                 clip_len = results['clip_len']
-#                 if isinstance(clip_len, dict):
-#                     clip_len = clip_len['RGB']
-#
-#                 imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
-#                 # N_crops x N_clips x T x H x W x C
-#                 imgs = np.transpose(imgs, (0, 1, 5, 2, 3, 4))
-#                 # N_crops x N_clips x C x T x H x W
-#                 imgs = imgs.reshape((-1, ) + imgs.shape[2:])
-#                 # M' x C x T x H x W
-#                 # M' = N_crops x N_clips
-#                 results['imgs'] = imgs
-#                 results['input_shape'] = imgs.shape
-#
-#             if 'heatmap_imgs' in results:
-#                 imgs = results['heatmap_imgs']
-#                 num_clips = results['num_clips']
-#                 clip_len = results['clip_len']
-#                 # clip_len must be a dict
-#                 clip_len = clip_len['Pose']
-#
-#                 imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
-#                 # N_crops x N_clips x T x C x H x W
-#                 imgs = np.transpose(imgs, (0, 1, 3, 2, 4, 5))
-#                 # N_crops x N_clips x C x T x H x W
-#                 imgs = imgs.reshape((-1, ) + imgs.shape[2:])
-#                 # M' x C x T x H x W
-#                 # M' = N_crops x N_clips
-#                 results['heatmap_imgs'] = imgs
-#                 results['heatmap_input_shape'] = imgs.shape
-#
-#         elif self.input_format == 'NCTHW_Heatmap':
-#             num_clips = results['num_clips']
-#             clip_len = results['clip_len']
-#             imgs = results['imgs']
-#
-#             imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
-#             # N_crops x N_clips x T x C x H x W
-#             imgs = np.transpose(imgs, (0, 1, 3, 2, 4, 5))
-#             # N_crops x N_clips x C x T x H x W
-#             imgs = imgs.reshape((-1, ) + imgs.shape[2:])
-#             # M' x C x T x H x W
-#             # M' = N_crops x N_clips
-#             results['imgs'] = imgs
-#             results['input_shape'] = imgs.shape
-#
-#         elif self.input_format == 'NCHW':
-#             imgs = results['imgs']
-#             imgs = np.transpose(imgs, (0, 3, 1, 2))
-#             # M x C x H x W
-#             results['imgs'] = imgs
-#             results['input_shape'] = imgs.shape
-#
-#         elif self.input_format == 'NCHW_Flow':
-#             num_imgs = len(results['imgs'])
-#             assert num_imgs % 2 == 0
-#             n = num_imgs // 2
-#             h, w = results['imgs'][0].shape
-#             x_flow = np.empty((n, h, w), dtype=np.float32)
-#             y_flow = np.empty((n, h, w), dtype=np.float32)
-#             for i in range(n):
-#                 x_flow[i] = results['imgs'][2 * i]
-#                 y_flow[i] = results['imgs'][2 * i + 1]
-#             imgs = np.stack([x_flow, y_flow], axis=-1)
-#
-#             num_clips = results['num_clips']
-#             clip_len = results['clip_len']
-#             imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
-#             # N_crops x N_clips x T x H x W x C
-#             imgs = np.transpose(imgs, (0, 1, 2, 5, 3, 4))
-#             # N_crops x N_clips x T x C x H x W
-#             imgs = imgs.reshape((-1, imgs.shape[2] * imgs.shape[3]) +
-#                                 imgs.shape[4:])
-#             # M' x C' x H x W
-#             # M' = N_crops x N_clips
-#             # C' = T x C
-#             results['imgs'] = imgs
-#             results['input_shape'] = imgs.shape
-#
-#         elif self.input_format == 'NPTCHW':
-#             num_proposals = results['num_proposals']
-#             num_clips = results['num_clips']
-#             clip_len = results['clip_len']
-#             imgs = results['imgs']
-#             imgs = imgs.reshape((num_proposals, num_clips * clip_len) +
-#                                 imgs.shape[1:])
-#             # P x M x H x W x C
-#             # M = N_clips x T
-#             imgs = np.transpose(imgs, (0, 1, 4, 2, 3))
-#             # P x M x C x H x W
-#             results['imgs'] = imgs
-#             results['input_shape'] = imgs.shape
-#
-#         if self.collapse:
-#             assert results['imgs'].shape[0] == 1
-#             results['imgs'] = results['imgs'].squeeze(0)
-#             results['input_shape'] = results['imgs'].shape
-#
-#         return results
-#
-#     def __repr__(self) -> str:
-#         repr_str = self.__class__.__name__
-#         repr_str += f"(input_format='{self.input_format}')"
-#         return repr_str
-#
-#
-# class Collect():
-#     """Collect keypoint and label"""
-#     def __init__(self):
-#         self.keys = ['imgs', 'label']
-#
-#     def transform(self, results: dict) -> dict:
-#         results_back = {}
-#         for key in self.keys:
-#             results_back[key] = results[key]
-#
-#         return results_back
-#
-# class ToTensor():
-#     """ToTensor"""
-#     def __init__(self, keys):
-#         self.keys = keys
-#
-#     def transform(self, results: dict) -> dict:
-#         for key in self.keys:
-#             results[key]=Tensor(results[key])
-#         return results
+def imflip_(img: np.ndarray, direction: str = 'horizontal') -> np.ndarray:
+    """Inplace flip an image horizontally or vertically.
+
+    Args:
+        img (ndarray): Image to be flipped.
+        direction (str): The flip direction, either "horizontal" or
+            "vertical" or "diagonal".
+
+    Returns:
+        ndarray: The flipped image (inplace).
+    """
+    assert direction in ['horizontal', 'vertical', 'diagonal']
+    if direction == 'horizontal':
+        return cv2.flip(img, 1, img)
+    elif direction == 'vertical':
+        return cv2.flip(img, 0, img)
+    else:
+        return cv2.flip(img, -1, img)
+
+def iminvert(img):
+    """Invert (negate) an image.
+
+    Args:
+        img (ndarray): Image to be inverted.
+
+    Returns:
+        ndarray: The inverted image.
+    """
+    return np.full_like(img, 255) - img
+
+class Flip():
+    """Flip the input images with a probability.
+
+    Reverse the order of elements in the given imgs with a specific direction.
+    The shape of the imgs is preserved, but the elements are reordered.
+
+    Required keys are "img_shape", "modality", "imgs" (optional), "keypoint"
+    (optional), added or modified keys are "imgs", "keypoint", "lazy" and
+    "flip_direction". Required keys in "lazy" is None, added or modified key
+    are "flip" and "flip_direction". The Flip augmentation should be placed
+    after any cropping / reshaping augmentations, to make sure crop_quadruple
+    is calculated properly.
+
+    Args:
+        flip_ratio (float): Probability of implementing flip. Default: 0.5.
+        direction (str): Flip imgs horizontally or vertically. Options are
+            "horizontal" | "vertical". Default: "horizontal".
+        flip_label_map (Dict[int, int] | None): Transform the label of the
+            flipped image with the specific label. Default: None.
+        left_kp (list[int]): Indexes of left keypoints, used to flip keypoints.
+            Default: None.
+        right_kp (list[ind]): Indexes of right keypoints, used to flip
+            keypoints. Default: None.
+        lazy (bool): Determine whether to apply lazy operation. Default: False.
+    """
+    _directions = ['horizontal', 'vertical']
+
+    def __init__(self,
+                 flip_ratio=0.5,
+                 direction='horizontal',
+                 flip_label_map=None,
+                 left_kp=None,
+                 right_kp=None,
+                 lazy=False):
+        if direction not in self._directions:
+            raise ValueError(f'Direction {direction} is not supported. '
+                             f'Currently support ones are {self._directions}')
+        self.flip_ratio = flip_ratio
+        self.direction = direction
+        self.flip_label_map = flip_label_map
+        self.left_kp = left_kp
+        self.right_kp = right_kp
+        self.lazy = lazy
+
+    def _flip_imgs(self, imgs, modality):
+        """Utility function for flipping images."""
+        _ = [imflip_(img, self.direction) for img in imgs]
+        lt = len(imgs)
+        if modality == 'Flow':
+            # The 1st frame of each 2 frames is flow-x
+            for i in range(0, lt, 2):
+                imgs[i] = iminvert(imgs[i])
+        return imgs
+
+    def _flip_kps(self, kps, kpscores, img_width):
+        """Utility function for flipping keypoint."""
+        kp_x = kps[..., 0]
+        kp_x[kp_x != 0] = img_width - kp_x[kp_x != 0]
+        new_order = list(range(kps.shape[2]))
+        if self.left_kp is not None and self.right_kp is not None:
+            for left, right in zip(self.left_kp, self.right_kp):
+                new_order[left] = right
+                new_order[right] = left
+        kps = kps[:, :, new_order]
+        if kpscores is not None:
+            kpscores = kpscores[:, :, new_order]
+        return kps, kpscores
+
+    def _box_flip(box, img_width):
+        """Flip the bounding boxes given the width of the image.
+
+        Args:
+            box (np.ndarray): The bounding boxes.
+            img_width (int): The img width.
+        """
+        box_ = box.copy()
+        box_[..., 0::4] = img_width - box[..., 2::4]
+        box_[..., 2::4] = img_width - box[..., 0::4]
+        return box_
+
+    def transform(self, results):
+        """Performs the Flip augmentation.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        _init_lazy_if_proper(results, self.lazy)
+        if 'keypoint' in results:
+            assert not self.lazy, ('Keypoint Augmentations are not compatible '
+                                   'with lazy == True')
+            assert self.direction == 'horizontal', (
+                'Only horizontal flips are'
+                'supported for human keypoints')
+
+        modality = "Pose" # FLAG数据集的模态
+        if modality == 'Flow':
+            assert self.direction == 'horizontal'
+
+        flip = np.random.rand() < self.flip_ratio
+
+        results['flip'] = flip
+        results['flip_direction'] = self.direction
+        img_width = results['img_shape'][1]
+
+        if self.flip_label_map is not None and flip:
+            results['label'] = self.flip_label_map.get(results['label'],
+                                                       results['label'])
+
+        if not self.lazy:
+            if flip:
+                if 'imgs' in results:
+                    results['imgs'] = self._flip_imgs(results['imgs'],
+                                                      modality)
+                if 'keypoint' in results:
+                    kp = results['keypoint']
+                    kpscore = results.get('keypoint_score', None)
+                    kp, kpscore = self._flip_kps(kp, kpscore, img_width)
+                    results['keypoint'] = kp
+                    if 'keypoint_score' in results:
+                        results['keypoint_score'] = kpscore
+        else:
+            lazyop = results['lazy']
+            if lazyop['flip']:
+                raise NotImplementedError('Use one Flip please')
+            lazyop['flip'] = flip
+            lazyop['flip_direction'] = self.direction
+
+        if 'gt_bboxes' in results and flip:
+            assert not self.lazy and self.direction == 'horizontal'
+            width = results['img_shape'][1]
+            results['gt_bboxes'] = self._box_flip(results['gt_bboxes'], width)
+            if 'proposals' in results and results['proposals'] is not None:
+                assert results['proposals'].shape[1] == 4
+                results['proposals'] = self._box_flip(results['proposals'],
+                                                      width)
+
+        return results
+
+    def __repr__(self):
+        repr_str = (
+            f'{self.__class__.__name__}('
+            f'flip_ratio={self.flip_ratio}, direction={self.direction}, '
+            f'flip_label_map={self.flip_label_map}, lazy={self.lazy})')
+        return repr_str
+
+class GeneratePoseTarget():
+    """Generate pseudo heatmaps based on joint coordinates and confidence.
+
+    Required Keys:
+
+        - keypoint
+        - keypoint_score (optional)
+        - img_shape
+
+    Added Keys:
+
+        - imgs (optional)
+        - heatmap_imgs (optional)
+
+    Args:
+        sigma (float): The sigma of the generated gaussian map.
+            Defaults to 0.6.
+        use_score (bool): Use the confidence score of keypoints as the maximum
+            of the gaussian maps. Defaults to True.
+        with_kp (bool): Generate pseudo heatmaps for keypoints.
+            Defaults to True.
+        with_limb (bool): Generate pseudo heatmaps for limbs. At least one of
+            'with_kp' and 'with_limb' should be True. Defaults to False.
+        skeletons (tuple[tuple]): The definition of human skeletons.
+            Defaults to ``((0, 1), (0, 2), (1, 3), (2, 4), (0, 5), (5, 7),
+                         (7, 9), (0, 6), (6, 8), (8, 10), (5, 11), (11, 13),
+                         (13, 15), (6, 12), (12, 14), (14, 16), (11, 12))``,
+            which is the definition of COCO-17p skeletons.
+        double (bool): Output both original heatmaps and flipped heatmaps.
+            Defaults to False.
+        left_kp (tuple[int]): Indexes of left keypoints, which is used when
+            flipping heatmaps. Defaults to (1, 3, 5, 7, 9, 11, 13, 15),
+            which is left keypoints in COCO-17p.
+        right_kp (tuple[int]): Indexes of right keypoints, which is used when
+            flipping heatmaps. Defaults to (2, 4, 6, 8, 10, 12, 14, 16),
+            which is right keypoints in COCO-17p.
+        left_limb (tuple[int]): Indexes of left limbs, which is used when
+            flipping heatmaps. Defaults to (0, 2, 4, 5, 6, 10, 11, 12),
+            which is left limbs of skeletons we defined for COCO-17p.
+        right_limb (tuple[int]): Indexes of right limbs, which is used when
+            flipping heatmaps. Defaults to (1, 3, 7, 8, 9, 13, 14, 15),
+            which is right limbs of skeletons we defined for COCO-17p.
+        scaling (float): The ratio to scale the heatmaps. Defaults to 1.
+    """
+
+    def __init__(self,
+                 sigma: float = 0.6,
+                 use_score: bool = True,
+                 with_kp: bool = True,
+                 with_limb: bool = False,
+                 skeletons: Tuple[Tuple[int]] = ((0, 1), (0, 2), (1, 3),
+                                                 (2, 4), (0, 5), (5, 7),
+                                                 (7, 9), (0, 6), (6, 8),
+                                                 (8, 10), (5, 11), (11, 13),
+                                                 (13, 15), (6, 12), (12, 14),
+                                                 (14, 16), (11, 12)),
+                 double: bool = False,
+                 left_kp: Tuple[int] = (1, 3, 5, 7, 9, 11, 13, 15),
+                 right_kp: Tuple[int] = (2, 4, 6, 8, 10, 12, 14, 16),
+                 left_limb: Tuple[int] = (0, 2, 4, 5, 6, 10, 11, 12),
+                 right_limb: Tuple[int] = (1, 3, 7, 8, 9, 13, 14, 15),
+                 scaling: float = 1.) -> None:
+
+        self.sigma = sigma
+        self.use_score = use_score
+        self.with_kp = with_kp
+        self.with_limb = with_limb
+        self.double = double
+
+        # an auxiliary const
+        self.eps = 1e-4
+
+        assert self.with_kp or self.with_limb, (
+            'At least one of "with_limb" '
+            'and "with_kp" should be set as True.')
+        self.left_kp = left_kp
+        self.right_kp = right_kp
+        self.skeletons = skeletons
+        self.left_limb = left_limb
+        self.right_limb = right_limb
+        self.scaling = scaling
+
+    def generate_a_heatmap(self, arr: np.ndarray, centers: np.ndarray,
+                           max_values: np.ndarray) -> None:
+        """Generate pseudo heatmap for one keypoint in one frame.
+
+        Args:
+            arr (np.ndarray): The array to store the generated heatmaps.
+                Shape: img_h * img_w.
+            centers (np.ndarray): The coordinates of corresponding keypoints
+                (of multiple persons). Shape: M * 2.
+            max_values (np.ndarray): The max values of each keypoint. Shape: M.
+        """
+
+        sigma = self.sigma
+        img_h, img_w = arr.shape
+
+        for center, max_value in zip(centers, max_values):
+            if max_value < self.eps:
+                continue
+
+            mu_x, mu_y = center[0], center[1]
+            st_x = max(int(mu_x - 3 * sigma), 0)
+            ed_x = min(int(mu_x + 3 * sigma) + 1, img_w)
+            st_y = max(int(mu_y - 3 * sigma), 0)
+            ed_y = min(int(mu_y + 3 * sigma) + 1, img_h)
+            x = np.arange(st_x, ed_x, 1, np.float32)
+            y = np.arange(st_y, ed_y, 1, np.float32)
+
+            # if the keypoint not in the heatmap coordinate system
+            if not (len(x) and len(y)):
+                continue
+            y = y[:, None]
+
+            patch = np.exp(-((x - mu_x)**2 + (y - mu_y)**2) / 2 / sigma**2)
+            patch = patch * max_value
+            arr[st_y:ed_y, st_x:ed_x] = \
+                np.maximum(arr[st_y:ed_y, st_x:ed_x], patch)
+
+    def generate_a_limb_heatmap(self, arr: np.ndarray, starts: np.ndarray,
+                                ends: np.ndarray, start_values: np.ndarray,
+                                end_values: np.ndarray) -> None:
+        """Generate pseudo heatmap for one limb in one frame.
+
+        Args:
+            arr (np.ndarray): The array to store the generated heatmaps.
+                Shape: img_h * img_w.
+            starts (np.ndarray): The coordinates of one keypoint in the
+                corresponding limbs. Shape: M * 2.
+            ends (np.ndarray): The coordinates of the other keypoint in the
+                corresponding limbs. Shape: M * 2.
+            start_values (np.ndarray): The max values of one keypoint in the
+                corresponding limbs. Shape: M.
+            end_values (np.ndarray): The max values of the other keypoint
+                in the corresponding limbs. Shape: M.
+        """
+
+        sigma = self.sigma
+        img_h, img_w = arr.shape
+
+        for start, end, start_value, end_value in zip(starts, ends,
+                                                      start_values,
+                                                      end_values):
+            value_coeff = min(start_value, end_value)
+            if value_coeff < self.eps:
+                continue
+
+            min_x, max_x = min(start[0], end[0]), max(start[0], end[0])
+            min_y, max_y = min(start[1], end[1]), max(start[1], end[1])
+
+            min_x = max(int(min_x - 3 * sigma), 0)
+            max_x = min(int(max_x + 3 * sigma) + 1, img_w)
+            min_y = max(int(min_y - 3 * sigma), 0)
+            max_y = min(int(max_y + 3 * sigma) + 1, img_h)
+
+            x = np.arange(min_x, max_x, 1, np.float32)
+            y = np.arange(min_y, max_y, 1, np.float32)
+
+            if not (len(x) and len(y)):
+                continue
+
+            y = y[:, None]
+            x_0 = np.zeros_like(x)
+            y_0 = np.zeros_like(y)
+
+            # distance to start keypoints
+            d2_start = ((x - start[0])**2 + (y - start[1])**2)
+
+            # distance to end keypoints
+            d2_end = ((x - end[0])**2 + (y - end[1])**2)
+
+            # the distance between start and end keypoints.
+            d2_ab = ((start[0] - end[0])**2 + (start[1] - end[1])**2)
+
+            if d2_ab < 1:
+                self.generate_a_heatmap(arr, start[None], start_value[None])
+                continue
+
+            coeff = (d2_start - d2_end + d2_ab) / 2. / d2_ab
+
+            a_dominate = coeff <= 0
+            b_dominate = coeff >= 1
+            seg_dominate = 1 - a_dominate - b_dominate
+
+            position = np.stack([x + y_0, y + x_0], axis=-1)
+            projection = start + np.stack([coeff, coeff], axis=-1) * (
+                end - start)
+            d2_line = position - projection
+            d2_line = d2_line[:, :, 0]**2 + d2_line[:, :, 1]**2
+            d2_seg = (
+                a_dominate * d2_start + b_dominate * d2_end +
+                seg_dominate * d2_line)
+
+            patch = np.exp(-d2_seg / 2. / sigma**2)
+            patch = patch * value_coeff
+
+            arr[min_y:max_y, min_x:max_x] = \
+                np.maximum(arr[min_y:max_y, min_x:max_x], patch)
+
+    def generate_heatmap(self, arr: np.ndarray, kps: np.ndarray,
+                         max_values: np.ndarray) -> None:
+        """Generate pseudo heatmap for all keypoints and limbs in one frame (if
+        needed).
+
+        Args:
+            arr (np.ndarray): The array to store the generated heatmaps.
+                Shape: V * img_h * img_w.
+            kps (np.ndarray): The coordinates of keypoints in this frame.
+                Shape: M * V * 2.
+            max_values (np.ndarray): The confidence score of each keypoint.
+                Shape: M * V.
+        """
+
+        if self.with_kp:
+            num_kp = kps.shape[1]
+            for i in range(num_kp):
+                self.generate_a_heatmap(arr[i], kps[:, i], max_values[:, i])
+
+        if self.with_limb:
+            for i, limb in enumerate(self.skeletons):
+                start_idx, end_idx = limb
+                starts = kps[:, start_idx]
+                ends = kps[:, end_idx]
+
+                start_values = max_values[:, start_idx]
+                end_values = max_values[:, end_idx]
+                self.generate_a_limb_heatmap(arr[i], starts, ends,
+                                             start_values, end_values)
+
+    def gen_an_aug(self, results: Dict) -> np.ndarray:
+        """Generate pseudo heatmaps for all frames.
+
+        Args:
+            results (dict): The dictionary that contains all info of a sample.
+
+        Returns:
+            np.ndarray: The generated pseudo heatmaps.
+        """
+
+        all_kps = results['keypoint'].astype(np.float32)
+        kp_shape = all_kps.shape
+
+        if 'keypoint_score' in results:
+            all_kpscores = results['keypoint_score']
+        else:
+            all_kpscores = np.ones(kp_shape[:-1], dtype=np.float32)
+
+        img_h, img_w = results['img_shape']
+
+        # scale img_h, img_w and kps
+        img_h = int(img_h * self.scaling + 0.5)
+        img_w = int(img_w * self.scaling + 0.5)
+        all_kps[..., :2] *= self.scaling
+
+        num_frame = kp_shape[1]
+        num_c = 0
+        if self.with_kp:
+            num_c += all_kps.shape[2]
+        if self.with_limb:
+            num_c += len(self.skeletons)
+
+        ret = np.zeros([num_frame, num_c, img_h, img_w], dtype=np.float32)
+
+        for i in range(num_frame):
+            # M, V, C
+            kps = all_kps[:, i]
+            # M, C
+            kpscores = all_kpscores[:, i] if self.use_score else \
+                np.ones_like(all_kpscores[:, i])
+
+            self.generate_heatmap(ret[i], kps, kpscores)
+        return ret
+
+    def transform(self, results: Dict) -> Dict:
+        """Generate pseudo heatmaps based on joint coordinates and confidence.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        heatmap = self.gen_an_aug(results)
+        key = 'heatmap_imgs' if 'imgs' in results else 'imgs'
+
+        if self.double:
+            indices = np.arange(heatmap.shape[1], dtype=np.int64)
+            left, right = (self.left_kp, self.right_kp) if self.with_kp else (
+                self.left_limb, self.right_limb)
+            for l, r in zip(left, right):  # noqa: E741
+                indices[l] = r
+                indices[r] = l
+            heatmap_flip = heatmap[..., ::-1][:, indices]
+            heatmap = np.concatenate([heatmap, heatmap_flip])
+        results[key] = heatmap
+        return results
+
+    def __repr__(self) -> str:
+        repr_str = (f'{self.__class__.__name__}('
+                    f'sigma={self.sigma}, '
+                    f'use_score={self.use_score}, '
+                    f'with_kp={self.with_kp}, '
+                    f'with_limb={self.with_limb}, '
+                    f'skeletons={self.skeletons}, '
+                    f'double={self.double}, '
+                    f'left_kp={self.left_kp}, '
+                    f'right_kp={self.right_kp}, '
+                    f'left_limb={self.left_limb}, '
+                    f'right_limb={self.right_limb}, '
+                    f'scaling={self.scaling})')
+        return repr_str
+
+class FormatShape(BaseTransform):
+    """Format final imgs shape to the given input_format.
+
+    Required keys:
+        - imgs (optional)
+        - heatmap_imgs (optional)
+        - num_clips
+        - clip_len
+
+    Modified Keys:
+        - imgs (optional)
+        - input_shape (optional)
+
+    Added Keys:
+        - heatmap_input_shape (optional)
+
+    Args:
+        input_format (str): Define the final data format.
+        collapse (bool): To collapse input_format N... to ... (NCTHW to CTHW,
+            etc.) if N is 1. Should be set as True when training and testing
+            detectors. Defaults to False.
+    """
+
+    def __init__(self, input_format: str, collapse: bool = False) -> None:
+        self.input_format = input_format
+        self.collapse = collapse
+        if self.input_format not in [
+                'NCTHW', 'NCHW', 'NCHW_Flow', 'NCTHW_Heatmap', 'NPTCHW'
+        ]:
+            raise ValueError(
+                f'The input format {self.input_format} is invalid.')
+
+    def transform(self, results: Dict) -> Dict:
+        """Performs the FormatShape formatting.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        if not isinstance(results['imgs'], np.ndarray):
+            results['imgs'] = np.array(results['imgs'])
+
+        # [M x H x W x C]
+        # M = 1 * N_crops * N_clips * T
+        if self.collapse:
+            assert results['num_clips'] == 1
+
+        if self.input_format == 'NCTHW':
+            if 'imgs' in results:
+                imgs = results['imgs']
+                num_clips = results['num_clips']
+                clip_len = results['clip_len']
+                if isinstance(clip_len, dict):
+                    clip_len = clip_len['RGB']
+
+                imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
+                # N_crops x N_clips x T x H x W x C
+                imgs = np.transpose(imgs, (0, 1, 5, 2, 3, 4))
+                # N_crops x N_clips x C x T x H x W
+                imgs = imgs.reshape((-1, ) + imgs.shape[2:])
+                # M' x C x T x H x W
+                # M' = N_crops x N_clips
+                results['imgs'] = imgs
+                results['input_shape'] = imgs.shape
+
+            if 'heatmap_imgs' in results:
+                imgs = results['heatmap_imgs']
+                num_clips = results['num_clips']
+                clip_len = results['clip_len']
+                # clip_len must be a dict
+                clip_len = clip_len['Pose']
+
+                imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
+                # N_crops x N_clips x T x C x H x W
+                imgs = np.transpose(imgs, (0, 1, 3, 2, 4, 5))
+                # N_crops x N_clips x C x T x H x W
+                imgs = imgs.reshape((-1, ) + imgs.shape[2:])
+                # M' x C x T x H x W
+                # M' = N_crops x N_clips
+                results['heatmap_imgs'] = imgs
+                results['heatmap_input_shape'] = imgs.shape
+
+        elif self.input_format == 'NCTHW_Heatmap':
+            num_clips = results['num_clips']
+            clip_len = results['clip_len']
+            imgs = results['imgs']
+
+            imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
+            # N_crops x N_clips x T x C x H x W
+            imgs = np.transpose(imgs, (0, 1, 3, 2, 4, 5))
+            # N_crops x N_clips x C x T x H x W
+            imgs = imgs.reshape((-1, ) + imgs.shape[2:])
+            # M' x C x T x H x W
+            # M' = N_crops x N_clips
+            results['imgs'] = imgs
+            results['input_shape'] = imgs.shape
+
+        elif self.input_format == 'NCHW':
+            imgs = results['imgs']
+            imgs = np.transpose(imgs, (0, 3, 1, 2))
+            # M x C x H x W
+            results['imgs'] = imgs
+            results['input_shape'] = imgs.shape
+
+        elif self.input_format == 'NCHW_Flow':
+            num_imgs = len(results['imgs'])
+            assert num_imgs % 2 == 0
+            n = num_imgs // 2
+            h, w = results['imgs'][0].shape
+            x_flow = np.empty((n, h, w), dtype=np.float32)
+            y_flow = np.empty((n, h, w), dtype=np.float32)
+            for i in range(n):
+                x_flow[i] = results['imgs'][2 * i]
+                y_flow[i] = results['imgs'][2 * i + 1]
+            imgs = np.stack([x_flow, y_flow], axis=-1)
+
+            num_clips = results['num_clips']
+            clip_len = results['clip_len']
+            imgs = imgs.reshape((-1, num_clips, clip_len) + imgs.shape[1:])
+            # N_crops x N_clips x T x H x W x C
+            imgs = np.transpose(imgs, (0, 1, 2, 5, 3, 4))
+            # N_crops x N_clips x T x C x H x W
+            imgs = imgs.reshape((-1, imgs.shape[2] * imgs.shape[3]) +
+                                imgs.shape[4:])
+            # M' x C' x H x W
+            # M' = N_crops x N_clips
+            # C' = T x C
+            results['imgs'] = imgs
+            results['input_shape'] = imgs.shape
+
+        elif self.input_format == 'NPTCHW':
+            num_proposals = results['num_proposals']
+            num_clips = results['num_clips']
+            clip_len = results['clip_len']
+            imgs = results['imgs']
+            imgs = imgs.reshape((num_proposals, num_clips * clip_len) +
+                                imgs.shape[1:])
+            # P x M x H x W x C
+            # M = N_clips x T
+            imgs = np.transpose(imgs, (0, 1, 4, 2, 3))
+            # P x M x C x H x W
+            results['imgs'] = imgs
+            results['input_shape'] = imgs.shape
+
+        if self.collapse:
+            assert results['imgs'].shape[0] == 1
+            results['imgs'] = results['imgs'].squeeze(0)
+            results['input_shape'] = results['imgs'].shape
+
+        return results
+
+    def __repr__(self) -> str:
+        repr_str = self.__class__.__name__
+        repr_str += f"(input_format='{self.input_format}')"
+        return repr_str
+
+
+class Collect():
+    """Collect keypoint and label"""
+    def __init__(self):
+        self.keys = ['imgs', 'label']
+
+    def transform(self, results: dict) -> dict:
+        results_back = {}
+        for key in self.keys:
+            results_back[key] = results[key]
+
+        return results_back
+
+class ToTensor():
+    """ToTensor"""
+    def __init__(self, keys):
+        self.keys = keys
+
+    def transform(self, results: dict) -> dict:
+        for key in self.keys:
+            results[key]=Tensor(results[key])
+        return results
