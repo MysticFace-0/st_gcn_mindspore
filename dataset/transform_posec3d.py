@@ -1134,17 +1134,17 @@ class GeneratePoseTarget():
                  use_score: bool = True,
                  with_kp: bool = True,
                  with_limb: bool = False,
-                 skeletons: Tuple[Tuple[int]] = ((0, 1), (0, 2), (1, 3),
+                 skeletons: tuple = ((0, 1), (0, 2), (1, 3),
                                                  (2, 4), (0, 5), (5, 7),
                                                  (7, 9), (0, 6), (6, 8),
                                                  (8, 10), (5, 11), (11, 13),
                                                  (13, 15), (6, 12), (12, 14),
                                                  (14, 16), (11, 12)),
                  double: bool = False,
-                 left_kp: Tuple[int] = (1, 3, 5, 7, 9, 11, 13, 15),
-                 right_kp: Tuple[int] = (2, 4, 6, 8, 10, 12, 14, 16),
-                 left_limb: Tuple[int] = (0, 2, 4, 5, 6, 10, 11, 12),
-                 right_limb: Tuple[int] = (1, 3, 7, 8, 9, 13, 14, 15),
+                 left_kp: tuple = (1, 3, 5, 7, 9, 11, 13, 15),
+                 right_kp: tuple = (2, 4, 6, 8, 10, 12, 14, 16),
+                 left_limb: tuple = (0, 2, 4, 5, 6, 10, 11, 12),
+                 right_limb: tuple = (1, 3, 7, 8, 9, 13, 14, 15),
                  scaling: float = 1.) -> None:
 
         self.sigma = sigma
@@ -1313,7 +1313,7 @@ class GeneratePoseTarget():
                 self.generate_a_limb_heatmap(arr[i], starts, ends,
                                              start_values, end_values)
 
-    def gen_an_aug(self, results: Dict) -> np.ndarray:
+    def gen_an_aug(self, results: dict) -> np.ndarray:
         """Generate pseudo heatmaps for all frames.
 
         Args:
@@ -1357,7 +1357,7 @@ class GeneratePoseTarget():
             self.generate_heatmap(ret[i], kps, kpscores)
         return ret
 
-    def transform(self, results: Dict) -> Dict:
+    def transform(self, results: dict) -> dict:
         """Generate pseudo heatmaps based on joint coordinates and confidence.
 
         Args:
