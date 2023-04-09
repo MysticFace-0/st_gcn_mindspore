@@ -121,11 +121,7 @@ class FLAG2DTestDatasetGenerator():
 if __name__=="__main__":
     dataset_generator = FLAG2DTestDatasetGenerator("D:\\data\\flag2d.pkl")
     dataset = ds.GeneratorDataset(dataset_generator, ["keypoint", "label"], shuffle=True).batch(2, True)
-    i=0
     for data in dataset.create_dict_iterator():
-        i+=1
-        if i>4:
-            break
         # Tensor(32, 10, 1, 500, 17, 3) Tensor(32)
         # (Batch_size, num_clips, num_person, frames, num_keypoint, keypoint_location+keypoint_score) (label)
         print(data["keypoint"].shape, data["label"])

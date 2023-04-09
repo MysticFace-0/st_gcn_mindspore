@@ -1364,7 +1364,8 @@ class GeneratePoseTarget():
             results (dict): The resulting dict to be modified and passed
                 to the next transform in pipeline.
         """
-        heatmap = self.gen_an_aug(results)
+        heatmap = self.gen_an_aug(results) # (num_clip*num_frame, 17, 64, 64)
+
         key = 'heatmap_imgs' if 'imgs' in results else 'imgs'
 
         if self.double:
@@ -1374,8 +1375,8 @@ class GeneratePoseTarget():
             for l, r in zip(left, right):  # noqa: E741
                 indices[l] = r
                 indices[r] = l
-            heatmap_flip = heatmap[..., ::-1][:, indices]
-            heatmap = np.concatenate([heatmap, heatmap_flip])
+            heatmap_flip = heatmap[..., ::-1][:, indices] # (num_clip*num_frame, 17, 64, 64)
+            heatmap = np.concatenate([heatmap, heatmap_flip]) # (b0_c0 b0_c1 b1_c0 b1_c1 ... b0_c0_flip b0_c1_flip b1_c0_flip b1_c1_flip, 17, 64, 64)
         results[key] = heatmap
         return results
 
@@ -1394,7 +1395,7 @@ class GeneratePoseTarget():
                     f'scaling={self.scaling})')
         return repr_str
 
-class FormatShape(BaseTransform):
+class FormatShape():
     """Format final imgs shape to the given input_format.
 
     Required keys:
@@ -1426,7 +1427,7 @@ class FormatShape(BaseTransform):
             raise ValueError(
                 f'The input format {self.input_format} is invalid.')
 
-    def transform(self, results: Dict) -> Dict:
+    def transform(self, results: dict) -> dict:
         """Performs the FormatShape formatting.
 
         Args:
@@ -1553,8 +1554,8 @@ class FormatShape(BaseTransform):
 
 class Collect():
     """Collect keypoint and label"""
-    def __init__(self):
-        self.keys = ['imgs', 'label']
+    def __init__(self, keys):
+        self.keys = keys
 
     def transform(self, results: dict) -> dict:
         results_back = {}
