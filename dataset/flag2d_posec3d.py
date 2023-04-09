@@ -1,7 +1,7 @@
 import pickle
 import mindspore.dataset as ds
 
-from dataset.transform_posec3d import UniformSampleFrames, PoseDecode, PoseCompact, Resize
+from dataset.transform_posec3d import UniformSampleFrames, PoseDecode, PoseCompact, Resize, RandomResizedCrop
     # Resize, RandomResizedCrop, \
     # Flip, GeneratePoseTarget, FormatShape, Collect, ToTensor
 
@@ -10,6 +10,7 @@ right_kp = [2, 4, 6, 8, 10, 12, 14, 16]
 
 PoseDecode = PoseDecode()
 PoseCompact = PoseCompact(hw_ratio=1., allow_imgpad=True)
+RandomResizedCrop = RandomResizedCrop(area_range=(0.56, 1.0))
 
 # RandomResizedCrop = RandomResizedCrop()
 # Flip = Flip(flip_ratio=0.5, left_kp=left_kp, right_kp=right_kp)
@@ -40,7 +41,8 @@ class FLAG2DTrainDatasetGenerator():
             self.dataset[i] = self.UniformSampleFrames.transform(self.dataset[i])
             self.dataset[i] = PoseDecode.transform(self.dataset[i])
             self.dataset[i] = PoseCompact.transform(self.dataset[i])
-
+            self.dataset[i] = self.Resize1.transform(self.dataset[i])
+            self.dataset[i] = RandomResizedCrop.transform(self.dataset[i])
             # self.dataset[i] = PreNormalize2D.transform(self.dataset[i])
             # self.dataset[i] = GenSkeFeat.transform(self.dataset[i])
             # self.dataset[i] = self.UniformSampleFrames.transform(self.dataset[i])
