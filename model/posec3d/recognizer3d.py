@@ -67,6 +67,16 @@ class Recognizer3d(nn.Cell):
 
 
     def construct(self, x):
+        # B batch_size
+        # N 视频个数
+        # T = 100 一个视频的帧数paper规定是100帧，不足的重头循环，多的clip
+        # V 17 根据不同的skeleton获得的节点数而定
+        # M = 1 人数，paper中将人数限定在最大1个人
+
+        # B N V T H W to B*M V T H W
+        B, N, V, T, H, W = x.shape
+        x = x.view(B*N, V, T, H, W)
+
         x = self.backbone(x)
         x = self.head(x)
         return x
@@ -92,8 +102,9 @@ if __name__ == "__main__":
         spatial_type='avg',
         dropout_ratio=0.5
     )
-    shape = (1, 17, 100, 64, 64)
+    # b, num_clip(double), num_keypoint(in_channel), frame, h, w
+    shape = (4, 2, 17, 500, 56, 56)
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
     y = model(x)
-    print(y.shape) # (1, 60)
+    print(y.shape) # (B*M, 60)

@@ -120,7 +120,8 @@ def train(dataset_train, model, celoss, optimizer, args):
 def val(dataset_val, model, celoss, args):
     i = 0  # iteration num
     total_loss = 0.
-    total_acc = 0.
+    total_acc_top1 = 0.
+    total_acc_top5 = 0.
 
     model.set_train(False)
     for data in dataset_val.create_dict_iterator():
@@ -132,19 +133,23 @@ def val(dataset_val, model, celoss, args):
         # 求每个batch准确率
         batch_acc = top_k_accuracy(y.numpy(), label.numpy(), args.topk)
 
-        total_acc += batch_acc[0]
+        total_acc_top1 += batch_acc[0]
+        total_acc_top5 += batch_acc[1]
         total_loss += loss
 
         i += 1
 
-    accuracy = total_acc/ i
-    print("val_total_avg_loss: ", total_loss / (args.batch_size * i), "accuracy: ", accuracy)
-    return accuracy
+
+    accuracy_top1 = total_acc_top1 / i
+    accuracy_top5 = total_acc_top5 / i
+    print("val_total_avg_loss: ", total_loss / (args.batch_size * i),  "accuracy_top1: ", accuracy_top1 ,"accuracy_top5: ", accuracy_top5)
+    return accuracy_top1, accuracy_top5
 
 def test(dataset_test, model, celoss, args):
     i = 0  # iteration num
     total_loss = 0.
-    total_acc = 0.
+    total_acc_top1 = 0.
+    total_acc_top5 = 0.
 
     model.set_train(False)
     for data in dataset_test.create_dict_iterator():
@@ -161,14 +166,16 @@ def test(dataset_test, model, celoss, args):
         # 求每个batch准确率
         batch_acc = top_k_accuracy(y.numpy(), label.numpy(), args.topk)
 
-        total_acc += batch_acc[0]
+        total_acc_top1 += batch_acc[0]
+        total_acc_top5 += batch_acc[1]
         total_loss += loss
 
         i += 1
 
-    accuracy = total_acc / i
-    print("test_total_avg_loss: ", total_loss / (args.batch_size * i), "accuracy: ", accuracy)
-    return accuracy
+    accuracy_top1 = total_acc_top1 / i
+    accuracy_top5 = total_acc_top5 / i
+    print("test_total_avg_loss: ", total_loss / (args.batch_size * i), "accuracy_top1: ", accuracy_top1 ,"accuracy_top5: ", accuracy_top5)
+    return accuracy_top1, accuracy_top5
 
 if __name__ == "__main__":
     logs_path = "./training_logs"
@@ -220,7 +227,7 @@ if __name__ == "__main__":
     parser.add_argument('--iter', default=100, type=int, help='iteration')
     parser.add_argument('--mode', default="train", type=str, help='train or test')
     # evaluate parameter
-    parser.add_argument('--topk', default=(1,), type=dict, help='top k for evaluation')
+    parser.add_argument('--topk', default=(1,5), type=dict, help='top k for evaluation')
 
     args = parser.parse_args()
     print(args)
