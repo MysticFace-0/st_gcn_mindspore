@@ -5,7 +5,7 @@ import mindspore
 import mindspore.nn as nn
 from mindspore import ops
 
-from resnet3d import ResNet3d, ConvBNLayer
+from .resnet3d import ResNet3d, ConvBNLayer
 
 
 class ResNet3dPathway(ResNet3d):

@@ -122,13 +122,12 @@ class FLAG2DPoseC3DTestDatasetGenerator():
         self.class_num = 60
         self.keypoint_num = 17
         self.dataset_len = len(self.dataset['split']['val'])
-        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):len(self.dataset['split']['train'])+10]
+        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):]
 
         # origin: (1, 745, 17, 2)
         self.UniformSampleFrames = UniformSampleFrames(clip_len, num_clips, test_mode)
 
-        # for i in range(self.dataset_len):
-        for i in range(10):
+        for i in range(self.dataset_len):
             self.dataset[i] = self.UniformSampleFrames.transform(self.dataset[i]) # (1, 745, 17, 2)
             self.dataset[i] = PoseDecode.transform(self.dataset[i]) # (1, 200, 17, 2)
             self.dataset[i] = PoseCompact.transform(self.dataset[i]) # (1, 200, 17, 2)
@@ -142,7 +141,7 @@ class FLAG2DPoseC3DTestDatasetGenerator():
         return self.dataset[index]['imgs'], self.dataset[index]['label']
 
     def __len__(self):
-        return 10
+        return self.dataset_len
 
     def class_num(self):
         return self.class_num

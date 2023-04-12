@@ -44,7 +44,7 @@ def main(args: argparse):
         spatial_strides=args.spatial_strides,
         temporal_strides=args.temporal_strides,
         dilations=args.dilations,
-        num_classes=args.num_classes,
+        num_classes=args.num_class,
         in_channels_head=args.in_channels_head,
         spatial_type=args.spatial_type,
         dropout_ratio=args.dropout_ratio)
@@ -73,10 +73,10 @@ def main(args: argparse):
         for i in range(args.epochs):
             print(f"Epoch {i}-------------------------------")
             train(dataset_train, model, celoss, optimizer, args)
-            val_acc = val(dataset_val, model, celoss, args)
+            val_acc_topk1, _ = val(dataset_val, model, celoss, args)
 
-            if val_acc>best_acc:
-                best_acc = val_acc
+            if val_acc_topk1 > best_acc:
+                best_acc = val_acc_topk1
                 mindspore.save_checkpoint(model, args.logs_path+"/"+"best.ckpt")
 
         test(dataset_test, model, celoss, args)

@@ -1,6 +1,6 @@
 import mindspore
 
-from resnet3d_slowfast import ResNet3dPathway
+from .resnet3d_slowfast import ResNet3dPathway
 
 class ResNet3dSlowOnly(ResNet3dPathway):
     """SlowOnly backbone based on ResNet3dPathway.
