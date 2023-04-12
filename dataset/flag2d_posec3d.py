@@ -36,7 +36,7 @@ Collect             dict_keys(['imgs', 'label'])
 ToTensor_val_test   dict_keys(['imgs', 'label'])
 """
 
-class FLAG2DTrainDatasetGenerator():
+class FLAG2DPoseC3DTrainDatasetGenerator():
     """
     dataset_dir: where the dataset locate
     """
@@ -75,7 +75,7 @@ class FLAG2DTrainDatasetGenerator():
     def class_num(self):
         return self.class_num
 
-class FLAG2DValDatasetGenerator():
+class FLAG2DPoseC3DValDatasetGenerator():
     """
     dataset_dir: where the dataset locate
     """
@@ -111,7 +111,7 @@ class FLAG2DValDatasetGenerator():
     def class_num(self):
         return self.class_num
 
-class FLAG2DTestDatasetGenerator():
+class FLAG2DPoseC3DTestDatasetGenerator():
     """
     dataset_dir: where the dataset locate
     """
@@ -148,7 +148,7 @@ class FLAG2DTestDatasetGenerator():
         return self.class_num
 
 if __name__=="__main__":
-    dataset_generator = FLAG2DTestDatasetGenerator("D:\\data\\flag2d.pkl")
+    dataset_generator = FLAG2DPoseC3DTestDatasetGenerator("D:\\data\\flag2d.pkl")
     dataset = ds.GeneratorDataset(dataset_generator, ["imgs", "label"], shuffle=True).batch(2, True)
     for data in dataset.create_dict_iterator():
         # Train: Tensor(32, 1, 17, 500, 56, 56) Tensor(32)

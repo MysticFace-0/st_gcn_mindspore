@@ -3,19 +3,21 @@ Pytorch to MindSpore
 
 Dataloader:
 
-​		FLAG2D(**finished**), FLAG3D(**finished**), FLAG2D_PoseConv3D(unfinished)
+​		FLAG2D(<u>**finished**</u>), FLAG3D(<u>**finished**</u>), FLAG2D_PoseConv3D(**<u>finished</u>**)
 
 Model:
 
-​		STGCN(**finished**), 2S-AGCN(**finished**), PoseConv3D(unfinished) 
+Model:
+
+​		STGCN(**<u>finished</u>**), 2S-AGCN(**<u>finished</u>**), PoseConv3D(**<u>finished</u>**) 
 
 Training file:
 
-​		STGCN_FLAG2D(**finished**), STGCN_FLAG3D(**finished**),
+​		STGCN_FLAG2D(**<u>finished</u>**), STGCN_FLAG3D(**<u>finished</u>**),
 
-​		2S-AGCN_FLAG2D(**finished**), 2S-AGCN_FLAG3D(**finished**),
+​		2S-AGCN_FLAG2D(**<u>finished</u>**), 2S-AGCN_FLAG3D(**finished**),
 
-​		PoseConv3D_FLAG2D(unfinished) 
+​		PoseConv3D_FLAG2D(**<u>finished</u>**) 
 
 
 

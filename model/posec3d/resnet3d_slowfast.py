@@ -1,8 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import warnings
 
-import paddle
-import paddle.nn as nn
+import mindspore
+import mindspore.nn as nn
+from mindspore import ops
 
 from resnet3d import ResNet3d, ConvBNLayer
 
@@ -56,7 +57,7 @@ class ResNet3dPathway(ResNet3d):
                         out_channels=self.inplanes * 2 // self.channel_ratio,
                         kernel_size=(fusion_kernel, 1, 1),
                         stride=(self.speed_ratio, 1, 1),
-                        padding=((fusion_kernel - 1) // 2, 0, 0),
+                        padding=((fusion_kernel - 1) // 2, (fusion_kernel - 1) // 2, 0, 0, 0, 0),
                         bias=False,
                         act=None
                     ))
@@ -177,84 +178,84 @@ class ResNet3dPathway(ResNet3d):
                     act_cfg=act_cfg,
                     with_cp=with_cp))
 
-        return nn.Sequential(*layers)
+        return nn.SequentialCell(*layers)
 
 
 
-    def _inflate_conv_params(self, conv3d, state_dict_2d, module_name_2d,
-                             inflated_param_names):
-        """Inflate a conv module from 2d to 3d.
-
-        The differences of conv modules betweene 2d and 3d in Pathway
-        mainly lie in the inplanes due to lateral connections. To fit the
-        shapes of the lateral connection counterpart, it will expand
-        parameters by concatting conv2d parameters and extra zero paddings.
-
-        Args:
-            conv3d (nn.Module): The destination conv3d module.
-            state_dict_2d (OrderedDict): The state dict of pretrained 2d model.
-            module_name_2d (str): The name of corresponding conv module in the
-                2d model.
-            inflated_param_names (list[str]): List of parameters that have been
-                inflated.
-        """
-        weight_2d_name = module_name_2d + '.weight'
-        conv2d_weight = state_dict_2d[weight_2d_name]
-        old_shape = conv2d_weight.shape
-        new_shape = conv3d.weight.data.shape
-        kernel_t = new_shape[2]
-
-        if new_shape[1] != old_shape[1]:
-            if new_shape[1] < old_shape[1]:
-                warnings.warn(f'The parameter of {module_name_2d} is not'
-                              'loaded due to incompatible shapes. ')
-                return
-            # Inplanes may be different due to lateral connections
-            new_channels = new_shape[1] - old_shape[1]
-            pad_shape = old_shape
-            pad_shape = pad_shape[:1] + (new_channels, ) + pad_shape[2:]
-            # Expand parameters by concat extra channels
-            conv2d_weight = paddle.concat(
-                (conv2d_weight,
-                 paddle.zeros(pad_shape)),
-                axis=1)
-
-        new_weight = conv2d_weight.data.unsqueeze(2).expand_as(
-            conv3d.weight) / kernel_t
-        conv3d.weight.data.copy_(new_weight)
-        inflated_param_names.append(weight_2d_name)
-
-        if getattr(conv3d, 'bias') is not None:
-            bias_2d_name = module_name_2d + '.bias'
-            conv3d.bias.data.copy_(state_dict_2d[bias_2d_name])
-            inflated_param_names.append(bias_2d_name)
-
-    def _freeze_stages(self):
-        """Prevent all the parameters from being optimized before
-        `self.frozen_stages`."""
-        if self.frozen_stages >= 0:
-            self.conv1.eval()
-            for param in self.conv1.parameters():
-                param.requires_grad = False
-
-        for i in range(1, self.frozen_stages + 1):
-            m = getattr(self, f'layer{i}')
-            m.eval()
-            for param in m.parameters():
-                param.requires_grad = False
-
-            if i != len(self.res_layers) and self.lateral:
-                # No fusion needed in the final stage
-                lateral_name = self.lateral_connections[i - 1]
-                conv_lateral = getattr(self, lateral_name)
-                conv_lateral.eval()
-                for param in conv_lateral.parameters():
-                    param.requires_grad = False
-
-    def init_weights(self, pretrained=None):
-        """Initiate the parameters either from existing checkpoint or from
-        scratch."""
-        pass
+    # def _inflate_conv_params(self, conv3d, state_dict_2d, module_name_2d,
+    #                          inflated_param_names):
+    #     """Inflate a conv module from 2d to 3d.
+    #
+    #     The differences of conv modules betweene 2d and 3d in Pathway
+    #     mainly lie in the inplanes due to lateral connections. To fit the
+    #     shapes of the lateral connection counterpart, it will expand
+    #     parameters by concatting conv2d parameters and extra zero paddings.
+    #
+    #     Args:
+    #         conv3d (nn.Module): The destination conv3d module.
+    #         state_dict_2d (OrderedDict): The state dict of pretrained 2d model.
+    #         module_name_2d (str): The name of corresponding conv module in the
+    #             2d model.
+    #         inflated_param_names (list[str]): List of parameters that have been
+    #             inflated.
+    #     """
+    #     weight_2d_name = module_name_2d + '.weight'
+    #     conv2d_weight = state_dict_2d[weight_2d_name]
+    #     old_shape = conv2d_weight.shape
+    #     new_shape = conv3d.weight.data.shape
+    #     kernel_t = new_shape[2]
+    #
+    #     if new_shape[1] != old_shape[1]:
+    #         if new_shape[1] < old_shape[1]:
+    #             warnings.warn(f'The parameter of {module_name_2d} is not'
+    #                           'loaded due to incompatible shapes. ')
+    #             return
+    #         # Inplanes may be different due to lateral connections
+    #         new_channels = new_shape[1] - old_shape[1]
+    #         pad_shape = old_shape
+    #         pad_shape = pad_shape[:1] + (new_channels, ) + pad_shape[2:]
+    #         # Expand parameters by concat extra channels
+    #         conv2d_weight = paddle.concat(
+    #             (conv2d_weight,
+    #              paddle.zeros(pad_shape)),
+    #             axis=1)
+    #
+    #     new_weight = conv2d_weight.data.unsqueeze(2).expand_as(
+    #         conv3d.weight) / kernel_t
+    #     conv3d.weight.data.copy_(new_weight)
+    #     inflated_param_names.append(weight_2d_name)
+    #
+    #     if getattr(conv3d, 'bias') is not None:
+    #         bias_2d_name = module_name_2d + '.bias'
+    #         conv3d.bias.data.copy_(state_dict_2d[bias_2d_name])
+    #         inflated_param_names.append(bias_2d_name)
+    #
+    # def _freeze_stages(self):
+    #     """Prevent all the parameters from being optimized before
+    #     `self.frozen_stages`."""
+    #     if self.frozen_stages >= 0:
+    #         self.conv1.eval()
+    #         for param in self.conv1.parameters():
+    #             param.requires_grad = False
+    #
+    #     for i in range(1, self.frozen_stages + 1):
+    #         m = getattr(self, f'layer{i}')
+    #         m.eval()
+    #         for param in m.parameters():
+    #             param.requires_grad = False
+    #
+    #         if i != len(self.res_layers) and self.lateral:
+    #             # No fusion needed in the final stage
+    #             lateral_name = self.lateral_connections[i - 1]
+    #             conv_lateral = getattr(self, lateral_name)
+    #             conv_lateral.eval()
+    #             for param in conv_lateral.parameters():
+    #                 param.requires_grad = False
+    #
+    # def init_weights(self, pretrained=None):
+    #     """Initiate the parameters either from existing checkpoint or from
+    #     scratch."""
+    #     pass
 
 
 pathway_cfg = {
@@ -287,7 +288,7 @@ def build_pathway(cfg, *args, **kwargs):
     return pathway
 
 
-class ResNet3dSlowFast(nn.Layer):
+class ResNet3dSlowFast(nn.Cell):
     """Slowfast backbone.
 
     This module is proposed in `SlowFast Networks for Video Recognition
@@ -371,7 +372,7 @@ class ResNet3dSlowFast(nn.Layer):
     def init_weights(self, pretrained=None):
         pass
 
-    def forward(self, x):
+    def construct(self, x):
         """Defines the computation performed at every call.
 
         Args:
@@ -381,24 +382,24 @@ class ResNet3dSlowFast(nn.Layer):
             tuple[torch.Tensor]: The feature of the input samples extracted
                 by the backbone.
         """
-        x_slow = nn.functional.interpolate(
+        x_slow = ops.interpolate(
             x,
             mode='nearest',
-            scale_factor=(1.0 / self.resample_rate, 1.0, 1.0))
+            scales=(1.0 / self.resample_rate, 1.0, 1.0))
         x_slow = self.slow_path.conv1(x_slow)
         x_slow = self.slow_path.maxpool(x_slow)
 
-        x_fast = nn.functional.interpolate(
+        x_fast = ops.interpolate(
             x,
             mode='nearest',
-            scale_factor=(1.0 / (self.resample_rate // self.speed_ratio), 1.0,
+            scales=(1.0 / (self.resample_rate // self.speed_ratio), 1.0,
                           1.0))
         x_fast = self.fast_path.conv1(x_fast)
         x_fast = self.fast_path.maxpool(x_fast)
 
         if self.slow_path.lateral:
             x_fast_lateral = self.slow_path.conv1_lateral(x_fast)
-            x_slow = paddle.concat((x_slow, x_fast_lateral), axis=1)
+            x_slow = ops.concat((x_slow, x_fast_lateral), axis=1)
 
         for i, layer_name in enumerate(self.slow_path.res_layers):
             res_layer = getattr(self.slow_path, layer_name)
@@ -411,7 +412,7 @@ class ResNet3dSlowFast(nn.Layer):
                 lateral_name = self.slow_path.lateral_connections[i]
                 conv_lateral = getattr(self.slow_path, lateral_name)
                 x_fast_lateral = conv_lateral(x_fast)
-                x_slow = paddle.concat((x_slow, x_fast_lateral), axis=1)
+                x_slow = ops.concat((x_slow, x_fast_lateral), axis=1)
 
         out = (x_slow, x_fast)
 

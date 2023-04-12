@@ -403,11 +403,12 @@ class ResNet3d(nn.Cell):
             # self.add_sublayer(layer_name, res_layer)
             self.res_layers.append(res_layer)
 
-        self.layer1 = self.res_layers[0]
-        self.layer2 = self.res_layers[1]
-        self.layer3 = self.res_layers[2]
-        self.layer4 = self.res_layers[3]
-        self.res_layers = nn.SequentialCell(self.layer1, self.layer2, self.layer3, self.layer4)
+        # self.layer1 = self.res_layers[0]
+        # self.layer2 = self.res_layers[1]
+        # self.layer3 = self.res_layers[2]
+        # self.layer4 = self.res_layers[3]
+        # self.res_layers = nn.SequentialCell(self.layer1, self.layer2, self.layer3, self.layer4)
+        self.res_layers = nn.SequentialCell(self.res_layers)
 
         self.feat_dim = self.block.expansion * self.base_channels * 2**(
             len(self.stage_blocks) - 1)
@@ -645,11 +646,10 @@ class ResNet3d(nn.Cell):
             x = self.maxpool(x)
         outs = []
         for i, layer_name in enumerate(self.res_layers):
-            res_layer = getattr(self, layer_name)
-            x = res_layer(x)
+            x = layer_name(x)
             if i == 0 and self.with_pool2:
                 x = self.pool2(x)
-            if i in self.out_indices:
+            if i in self.out_indices: # (3,)
                 outs.append(x)
         if len(outs) == 1:
             return outs[0]
@@ -657,11 +657,11 @@ class ResNet3d(nn.Cell):
         return tuple(outs)
 
 if __name__ == "__main__":
-    resnet3d = ResNet3d(101,None)
+    resnet3d = ResNet3d(depth = 101, pretrained = None, in_channels = 17)
     for m in resnet3d.cells_and_names():
         print(m[0])
-    shape = (1, 3, 100, 64, 64)
+    shape = (1, 17, 100, 64, 64)
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
     y = resnet3d(x)
-    print(y)
+    print(y.shape) # (1, 2048, 50, 2, 2)
