@@ -72,7 +72,7 @@ class STGCN(nn.Cell):
 
         # fcn for prediction
 
-        self.fcn = nn.Conv2d(256, num_class, kernel_size=1)
+        self.fcn = nn.Conv2d(256, num_class, kernel_size=1, has_bias=True)
 
     def construct(self, x):
         # B batch_size
@@ -239,7 +239,7 @@ if __name__=="__main__":
     x = uniformreal(shape)
     y = model(x)
     print(y.shape)
-    #(2, 1, 1, 100, 17, 3)->(2, 60)     (2, 10, 1, 100, 17, 3)->(20, 60)
+    # (2, 1, 1, 100, 17, 3)->(2, 60)     (2, 10, 1, 100, 17, 3)->(20, 60)
 
     # # stgcn测试
     # st_gcn = st_gcn(3, 64, (9, 1), 1)

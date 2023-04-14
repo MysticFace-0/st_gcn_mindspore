@@ -7,8 +7,6 @@ Dataloader:
 
 Model:
 
-Model:
-
 ​		STGCN(**<u>finished</u>**), 2S-AGCN(**<u>finished</u>**), PoseConv3D(**<u>finished</u>**) 
 
 Training file:
@@ -16,6 +14,14 @@ Training file:
 ​		STGCN_FLAG2D(**<u>finished</u>**), STGCN_FLAG3D(**<u>finished</u>**),
 
 ​		2S-AGCN_FLAG2D(**<u>finished</u>**), 2S-AGCN_FLAG3D(**finished**),
+
+​		PoseConv3D_FLAG2D(**<u>finished</u>**) 
+
+pth2chpk:
+
+​		STGCN_FLAG2D(**<u>unfinished</u>**), STGCN_FLAG3D(**<u>unfinished</u>**),
+
+​		2S-AGCN_FLAG2D(**<u>unfinished</u>**), 2S-AGCN_FLAG3D(**unfinished**),
 
 ​		PoseConv3D_FLAG2D(**<u>finished</u>**) 
 

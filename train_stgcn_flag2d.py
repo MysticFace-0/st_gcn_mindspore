@@ -108,6 +108,10 @@ def val(dataset_val, model, celoss, args):
     total_loss = 0.
     total_acc = 0.
 
+    #  MindSpore 只有在调用grad才会根据正向图结构来构建反向图，
+    # 正向执行时不会记录任何信息，所以 MindSpore 并不需要该接口，
+    # 也可以理解为 MindSpore 的正向计算均在torch.no_grad 情况下进行的。
+
     model.set_train(False)
     for data in dataset_val.create_dict_iterator():
         x = data["keypoint"]
