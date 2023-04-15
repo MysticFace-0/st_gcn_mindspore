@@ -56,8 +56,12 @@ if __name__ == "__main__":
         temporal_strides=(1, 1, 2),
         dilations=(1, 1, 1)
     )
-    for m in backbone.cells_and_names():
-        print(m[0])
+    # for m in backbone.cells_and_names():
+    #     print(m[0])
+    # for param in backbone.trainable_params():
+    #     print(param)
+    # for para in backbone.parameters_dict():
+    #     print(para)
     shape = (1, 17, 100, 64, 64)
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)

@@ -23,7 +23,7 @@ pth2chpk:
 
 ​		2S-AGCN_FLAG2D(**<u>unfinished</u>**), 2S-AGCN_FLAG3D(**unfinished**),
 
-​		PoseConv3D_FLAG2D(**<u>finished</u>**) 
+​		PoseConv3D_FLAG2D(**<u>finished, can maintain accuracy</u>**) 
 
 
 

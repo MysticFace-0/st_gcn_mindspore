@@ -188,7 +188,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', default="../data/FLAG/flag2d.pkl", type=str,
                         help='where dataset locate')
     parser.add_argument('--logs_path', default=logs_path, type=str, help='where logs and ckpt locate')
-    parser.add_argument('--resume', default=None, type=str, help='where trained model locate')
+    parser.add_argument('--resume', default='./chpk_resume/posec3d_2d.ckpt', type=str, help='where trained model locate')
     # dataloader parameter
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
     parser.add_argument('--num_frames', default=500, type=int, help='Number of frames for the single video')

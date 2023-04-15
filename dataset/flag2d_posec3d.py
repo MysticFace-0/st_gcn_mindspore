@@ -86,7 +86,7 @@ class FLAG2DPoseC3DValDatasetGenerator():
         self.class_num = 60
         self.keypoint_num = 17
         self.dataset_len = len(self.dataset['split']['val'])
-        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):len(self.dataset['split']['train'])+5]
+        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train'])+100:len(self.dataset['split']['train'])+105]
 
         # origin: (1, 1045, 17, 2)
         self.UniformSampleFrames = UniformSampleFrames(clip_len, num_clips, test_mode) # (1, 1045, 17, 3)
