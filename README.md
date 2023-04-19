@@ -19,11 +19,17 @@ Training file:
 
 pth2chpk:
 
-​		STGCN_FLAG2D(**<u>unfinished</u>**), STGCN_FLAG3D(**<u>unfinished</u>**),
+​		STGCN_FLAG2D(**<u>finished, can maintain accuracy</u>**), 
 
-​		2S-AGCN_FLAG2D(**<u>unfinished</u>**), 2S-AGCN_FLAG3D(**unfinished**),
+​		STGCN_FLAG3D(**<u>finished, can maintain accuracy</u>**),
+
+​		2S-AGCN_FLAG2D(**<u>unfinished</u>**), 
+
+​		2S-AGCN_FLAG3D(**unfinished**),
 
 ​		PoseConv3D_FLAG2D(**<u>finished, can maintain accuracy</u>**) 
+
+​		
 
 
 
