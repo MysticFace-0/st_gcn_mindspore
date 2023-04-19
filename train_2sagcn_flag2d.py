@@ -10,11 +10,11 @@ from dataset import FLAG2DTrainDatasetGenerator, FLAG2DValDatasetGenerator, FLAG
 from evaluation.evaluation import top_k_accuracy
 from logs.logger import Logger
 
-from model.sagcn.agcn import AGCN
-
 import mindspore.dataset as ds
 import mindspore.nn as nn
 from mindspore.train.callback import ModelCheckpoint, CheckpointConfig
+
+from model.sagcn_mm.sacgn_recognizer import AAGCN_RECOGNIZER
 
 
 def main(args: argparse):
@@ -33,7 +33,15 @@ def main(args: argparse):
         args.batch_size, True)
 
     # model
-    model = AGCN(args.num_class, args.num_point, args.num_person, args.num_frames, args.graph_args, args.in_channels)
+    model = AAGCN_RECOGNIZER(
+        in_channels=args.in_channels,
+        num_person = args.num_person,
+        graph_args=args.graph_args,
+        num_classes=args.num_class,
+        in_channels_head=args.in_channels_head,
+        kernel_size=args.kernel_size
+    )
+
 
     # loss
     celoss = nn.CrossEntropyLoss()
@@ -178,6 +186,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_person', default=1, type=int, help='Number of person for the classification task')
     parser.add_argument('--graph_args', default=dict(layout='coco', mode='spatial'), type=dict,
                         help='The arguments for building the graph')
+    parser.add_argument('--in_channels_head', default=256, type=int, help='in_channels_head')
+    parser.add_argument('--kernel_size', default=(125, 17), type=dict,
+                        help='kernel_size')
 
     # optimizer parameter
     parser.add_argument('--lr', default=0.8, type=float, help='learning rate')

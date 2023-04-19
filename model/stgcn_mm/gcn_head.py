@@ -23,7 +23,7 @@ class GCNHead(nn.Cell):
         self.num_classes = num_classes
         self.in_channels = in_channels_head
         self.dropout_ratio = dropout
-        if self.dropout_ratio != 0:
+        if self.dropout_ratio != 1.:
             self.dropout = nn.Dropout(self.dropout_ratio)
         else:
             self.dropout = None

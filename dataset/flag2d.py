@@ -58,12 +58,12 @@ class FLAG2DValDatasetGenerator():
         self.class_num = 60
         self.keypoint_num = 17
         self.dataset_len = len(self.dataset['split']['val'])
-        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):len(self.dataset['split']['train'])+10]
+        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):]
 
         # origin: (1, 745, 17, 2)
         self.UniformSampleFrames = UniformSampleFrames(clip_len, num_clips, test_mode) # (1, 745, 17, 3)
 
-        for i in range(10):
+        for i in range(self.dataset_len):
             self.dataset[i] = PreNormalize2D.transform(self.dataset[i])
             self.dataset[i] = GenSkeFeat.transform(self.dataset[i])
             self.dataset[i] = self.UniformSampleFrames.transform(self.dataset[i])
@@ -77,7 +77,7 @@ class FLAG2DValDatasetGenerator():
         return self.dataset[index]['keypoint'], self.dataset[index]['label']
 
     def __len__(self):
-        return 10
+        return self.dataset_len
 
     def class_num(self):
         return self.class_num
