@@ -1,19 +1,47 @@
 import numpy as np
 from mindspore.common.tensor import Tensor
 
+
 class PreNormalize2D():
-    """Normalize the range of keypoint values."""
-    def __init__(self, img_shape = (480, 854)):
+    """Normalize the range of keypoint values.
+
+    Required Keys:
+
+        - keypoint
+        - img_shape (optional)
+
+    Modified Keys:
+
+        - keypoint
+
+    Args:
+        img_shape (tuple[int, int]): The resolution of the original video.
+            Defaults to ``(1080, 1920)``.
+    """
+
+    def __init__(self, img_shape: tuple = (1080, 1920)) -> None:
         self.img_shape = img_shape
 
     def transform(self, results: dict) -> dict:
-        w, h = self.img_shape[0], self.img_shape[1]
-        results['keypoint'][..., 0] = \
-            ( results['keypoint'][..., 0] - (w / 2)) / (w / 2)
-        results['keypoint'][..., 1] = \
-            ( results['keypoint'][..., 1] - (h / 2)) / (h / 2)
+        """The transform function of :class:`PreNormalize2D`.
 
+        Args:
+            results (dict): The result dict.
+
+        Returns:
+            dict: The result dict.
+        """
+        h, w = results.get('img_shape', self.img_shape)
+        results['keypoint'][..., 0] = \
+            (results['keypoint'][..., 0] - (w / 2)) / (w / 2)
+        results['keypoint'][..., 1] = \
+            (results['keypoint'][..., 1] - (h / 2)) / (h / 2)
         return results
+
+    def __repr__(self) -> str:
+        repr_str = (f'{self.__class__.__name__}('
+                    f'img_shape={self.img_shape})')
+        return repr_str
 
 class GenSkeFeat():
     """Unified interface for generating multi-stream skeleton features."""
@@ -276,4 +304,5 @@ class ToTensor():
         return results
 
 
-
+if __name__=="__main__":
+    GenSkeFeat = GenSkeFeat(dataset='coco', feats=['j'])

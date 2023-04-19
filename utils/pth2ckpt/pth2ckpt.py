@@ -6,9 +6,9 @@ from mindspore.train.serialization import save_checkpoint
 from map import load_map
 
 
-def pytorch2mindspore(pth_name):
+def pytorch2mindspore(args):
     #载入pth
-    par_dict = torch.load(pth_name, map_location=torch.device('cpu'))
+    par_dict = torch.load(args.pth_path, map_location=torch.device('cpu'))
 
     map = load_map(args.pth_name)
     new_params_list = []
@@ -21,6 +21,7 @@ def pytorch2mindspore(pth_name):
             param_dict = {}
             param_dict['name'] = ms_name
             param_dict['data'] = Tensor(parameter.numpy())
+
             new_params_list.append(param_dict)
 
     save_checkpoint(new_params_list, args.save_path)
@@ -28,7 +29,7 @@ def pytorch2mindspore(pth_name):
 def main(args):
     assert args.pth_name in ['stgcn_2d','agcn_2d','posec3d_2d','stgcn_3d','agcn_3d']
 
-    pytorch2mindspore(args.pth_path)
+    pytorch2mindspore(args)
 
 if __name__=="__main__":
     # FLAG2D
@@ -41,9 +42,9 @@ if __name__=="__main__":
     # D:\\data\\work_dirs\\3d_baseline\\2sagcn-j-lr0.1\\best_top1_acc_epoch_27.pth
 
     parser = argparse.ArgumentParser(description='pth to ckpt')
-    parser.add_argument('--pth_path', default="D:\\data\\work_dirs\\2d_baseline\\posec3d-j-lr0.1\\best_top1_acc_epoch_30.pth",
+    parser.add_argument('--pth_path', default="D:\\data\\work_dirs\\3d_baseline\\stgcn-lr0.1\\best_top1_acc_epoch_22.pth",
                         type=str, help='where pth locate')
-    parser.add_argument('--pth_name', default="posec3d_2d",
+    parser.add_argument('--pth_name', default="stgcn_3d",
                         choices = ['stgcn_2d','agcn_2d','posec3d_2d','stgcn_3d','agcn_3d'],type=str, help='which pth to transform')
     parser.add_argument('--save_path', default="./mindspore.ckpt",
                         type=str, help='where ckpt locate')

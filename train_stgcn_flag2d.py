@@ -10,11 +10,11 @@ from dataset import FLAG2DTrainDatasetGenerator, FLAG2DValDatasetGenerator, FLAG
 from evaluation.evaluation import top_k_accuracy
 from logs.logger import Logger
 
-from model.stgcn.st_gcn import STGCN
-
 import mindspore.dataset as ds
 import mindspore.nn as nn
 from mindspore.train.callback import ModelCheckpoint, CheckpointConfig
+
+from model.stgcn_mm.stcgn_recognizer import STGCN_RECOGNIZER
 
 
 def main(args: argparse):
@@ -33,7 +33,13 @@ def main(args: argparse):
         args.batch_size, True)
 
     # model
-    model = STGCN(args.in_channels, args.num_frames, args.num_class, args.graph_args, args.edge_importance)
+    model = STGCN_RECOGNIZER(
+        in_channels=args.in_channels,
+        graph_args=args.graph_args,
+        num_classes=args.num_class,
+        in_channels_head=args.in_channels,
+        kernel_size=args.kernel_size
+    )
 
     # loss
     celoss = nn.CrossEntropyLoss()
@@ -180,8 +186,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_class', default=60, type=int, help='Number of classes for the classification task')
     parser.add_argument('--graph_args', default=dict(layout='coco', mode='stgcn_spatial'), type=dict,
                         help='The arguments for building the graph')
-    parser.add_argument('--edge_importance', default=False, type=bool,
-                        help='If ``True``, adds a learnable importance weighting to the edges of the graph')
+    parser.add_argument('--in_channels_head', default=256, type=int, help='in_channels_head')
+    parser.add_argument('--kernel_size', default=(500, 17), type=dict,
+                        help='kernel_size')
     # optimizer parameter
     parser.add_argument('--lr', default=0.8, type=float, help='learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum')

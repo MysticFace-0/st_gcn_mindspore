@@ -79,6 +79,7 @@ class ConvTemporalGraphical(nn.Cell):
 
         return x, A
 
+
 if __name__=="__main__":
     gcn = ConvTemporalGraphical(3, 64, 1)
     #  设 N=256*2, C=3, T=150, V=18

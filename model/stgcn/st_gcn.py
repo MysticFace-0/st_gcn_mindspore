@@ -4,8 +4,8 @@ import numpy
 
 from mindspore import Parameter, Tensor, ParameterTuple, ops
 
-from .utils.tgcn import ConvTemporalGraphical
-from .utils.graph import Graph
+from utils.tgcn import ConvTemporalGraphical
+from utils.graph import Graph
 
 class STGCN(nn.Cell):
     r"""Spatial temporal graph convolutional networks.
@@ -34,16 +34,20 @@ class STGCN(nn.Cell):
 
         # load graph
         self.graph = Graph(**graph_args)
-        self.A = Parameter(Tensor(self.graph.A, dtype=mindspore.float32), requires_grad=False)
-
+        # self.A = Parameter(Tensor(self.graph.A, dtype=mindspore.float32), requires_grad=False)
+        self.A = Tensor(self.graph.A, dtype=mindspore.float32)
         # build networks
         spatial_kernel_size = self.A.shape[0]
         temporal_kernel_size = 9
         kernel_size = (temporal_kernel_size, spatial_kernel_size) # (9,3)
 
-        self.data_bnt = nn.BatchNorm1d(num_frames)
+        # 只对C归一化
         self.data_bnc = nn.BatchNorm1d(in_channels * self.A.shape[1])
-        # mindspore无三维算子，先要在L上归一化，再在C上归一化
+        # # 对L和C归一化
+        # self.data_bnt = nn.BatchNorm1d(num_frames, affine=False, gamma_init='zeros',
+        #                                beta_init='zeros', moving_mean_init='zeros', moving_var_init='zeros')
+        # self.data_bnc = nn.BatchNorm1d(in_channels * self.A.shape[1])
+        # # mindspore无三维算子，先要在L上归一化，再在C上归一化
 
         kwargs0 = {k: v for k, v in kwargs.items() if k != 'dropout'}
         self.st_gcn_networks = nn.CellList([
@@ -92,17 +96,24 @@ class STGCN(nn.Cell):
         x = x.permute(0, 4, 3, 1, 2)#.contiguous()
         x = x.view(N * M, V * C, T) # (2*1, 3*17, 100)
 
-        # 先对T做归一化
-        x = self.data_bnt(x.view(N * M * V * C, T)).view(N * M, V * C, T)
+        # 只对C归一化
         x = x.transpose((0, 2, 1))
-        # 再对C做归一化
         x = self.data_bnc(x.view(N * M * T, V * C)).view(N * M, T, V * C)
         x = x.transpose((0, 2, 1))
+
+        # # 对L和C归一化
+        # # 先对T做归一化
+        # x = self.data_bnt(x.view(N * M * V * C, T)).view(N * M, V * C, T)
+        # x = x.transpose((0, 2, 1))
+        # # 再对C做归一化
+        # x = self.data_bnc(x.view(N * M * T, V * C)).view(N * M, T, V * C)
+        # x = x.transpose((0, 2, 1))
 
         x = x.view(N, M, V, C, T)
         x = x.permute(0, 1, 3, 4, 2)#.contiguous()
         x = x.view(N * M, C, T, V) # human1_video=[0:num_clip], human2_video=[num_clip:2*num_clip]
 
+        # forwad
         # forwad
         for gcn, importance in zip(self.st_gcn_networks, self.edge_importance):
             x, _ = gcn(x, self.A * importance)
@@ -135,8 +146,8 @@ class STGCN(nn.Cell):
         x = x.view(N * M, C, T, V)
 
         # forwad
-        for gcn, importance in zip(self.st_gcn_networks, self.edge_importance):
-            x, _ = gcn(x, self.A * importance)
+        for gcn in zip(self.st_gcn_networks):
+            x = gcn(x, self.A)
 
         _, c, t, v = x.shape
         feature = x.view(N, M, c, t, v).permute(0, 2, 3, 4, 1)
@@ -185,7 +196,6 @@ class st_gcn(nn.Cell):
         assert kernel_size[0] % 2 == 1
         padding = ((kernel_size[0] - 1) // 2, (kernel_size[0] - 1) // 2, 0, 0)
         #padding 是一个有4个整数的tuple，那么上、下、左、右的填充分别等于 padding[0] 、 padding[1] 、 padding[2] 和 padding[3]
-
         self.gcn = ConvTemporalGraphical(in_channels, out_channels,
                                          kernel_size[1])
 
@@ -199,6 +209,7 @@ class st_gcn(nn.Cell):
                 (stride, 1),
                 pad_mode= "pad", # 填充模式
                 padding=padding,
+                has_bias=True,
             ),
             nn.BatchNorm2d(out_channels),
             nn.Dropout(keep_prob=dropout),
@@ -215,7 +226,8 @@ class st_gcn(nn.Cell):
                     in_channels,
                     out_channels,
                     kernel_size=1,
-                    stride=(stride, 1)),
+                    stride=(stride, 1),
+                    has_bias=True),
                 nn.BatchNorm2d(out_channels),
             )
 
@@ -233,13 +245,15 @@ class st_gcn(nn.Cell):
 
 if __name__=="__main__":
     # model测试
-    model = STGCN(3, 100, 60, dict(layout='coco', mode='stgcn_spatial'), False)
-    shape = (2, 1, 1, 100, 25, 3) # dataloader直接读取的格式
+    model = STGCN(3, 500, 60, dict(layout='coco', mode='stgcn_spatial'), True)
+    for para in model.parameters_dict():
+        print(para)
+    shape = (1, 1, 1, 500, 17, 3) # dataloader直接读取的格式
     uniformreal = mindspore.ops.UniformReal(seed=2)
     x = uniformreal(shape)
     y = model(x)
     print(y.shape)
-    # (2, 1, 1, 100, 17, 3)->(2, 60)     (2, 10, 1, 100, 17, 3)->(20, 60)
+    # (2, 1, 1, 500, 17, 3)->(2, 60)     (2, 10, 1, 500, 17, 3)->(20, 60)
 
     # # stgcn测试
     # st_gcn = st_gcn(3, 64, (9, 1), 1)

@@ -57,12 +57,12 @@ class FLAG3DValDatasetGenerator():
         self.class_num = 60
         self.keypoint_num = 25
         self.dataset_len = len(self.dataset['split']['val'])
-        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):]
+        self.dataset = self.dataset['annotations'][len(self.dataset['split']['train']):len(self.dataset['split']['train'])+10]
 
         # origin: (1, 1046, 25, 3)
         self.UniformSampleFrames = UniformSampleFrames(clip_len, num_clips, test_mode) # (1, 1046, 25, 3)
 
-        for i in range(self.dataset_len):
+        for i in range(10):
             self.dataset[i] = GenSkeFeat.transform(self.dataset[i])
             self.dataset[i] = self.UniformSampleFrames.transform(self.dataset[i])
             self.dataset[i] = PoseDecode.transform(self.dataset[i])
@@ -74,7 +74,7 @@ class FLAG3DValDatasetGenerator():
         return self.dataset[index]['keypoint'], self.dataset[index]['label']
 
     def __len__(self):
-        return self.dataset_len
+        return 10
 
     def class_num(self):
         return self.class_num
